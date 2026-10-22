@@ -1,125 +1,131 @@
 # Lesson 9 — Theory: PyTorch
 
-You have now built, by hand, every idea PyTorch is made of. This lesson is mostly
-translation: lessons 5, 6 and 8 again, in the tool you would use for real work.
+You have now built, by hand, every core principle PyTorch is made of. This lesson is mostly
+translation: Lessons 5, 6, and 8 revisited in the production tool you use for real deep learning systems.
+
+---
+
+## 0. Learning Objectives
+
+By the end of this lesson, you will be able to:
+
+1. **Map Course Concepts to PyTorch**: Map every scratch abstraction (`Value`, `Layer`, `Dense`, `Sequential`, `sgd_step`) directly to its PyTorch equivalent (`Tensor`, `nn.Module`, `nn.Linear`, `nn.Sequential`, `torch.optim`).
+2. **Execute the Standard Training Loop**: Write and explain the canonical 4-line PyTorch training step (`zero_grad`, forward loss, `backward`, `step`).
+3. **Control Autograd Contexts**: Explain why parameter updates must occur inside `with torch.no_grad():` and why optimizer gradients must be zeroed.
+4. **Navigate Weight Layout Transpositions**: Reconcile PyTorch's `nn.Linear` transposed weight layout $(d_{\text{out}}, d_{\text{in}})$ with our scratch $(d_{\text{in}}, d_{\text{out}})$ conventions.
+5. **Appreciate Framework Abstractions**: Identify what PyTorch handles automatically (accelerator dispatch, dynamic graph caching, C++ kernels) and recognize when to apply scratch principles for debugging.
+
+---
 
 ## 1. A tensor is lesson 3 plus lesson 8
 
-- Lesson 3's arrays are fast but forget where they came from.
-- Lesson 8's Values remember, but one number at a time.
+- Lesson 3's NumPy arrays are fast and vectorized, but discard computational provenance.
+- Lesson 8's `Value` nodes track provenance and autograd, but operate on individual Python scalars.
 
-A PyTorch **tensor** is an array that can keep receipts. Create it with
-`requires_grad=True` and every operation on it is recorded; `.backward()` on a
-result fills `.grad` on every tensor that fed into it. Your lesson 8 API, almost
-word for word.
+A PyTorch **Tensor** fuses both concepts: a contiguous multi-dimensional array with native GPU acceleration that keeps an automatic differentiation receipt graph.
+Constructing a tensor with `requires_grad=True` instructs the C++ autograd engine to record every operation. Invoking `.backward()` on a scalar output computes gradients across all ancestor leaf tensors, storing results in `.grad`.
 
-Tensors look and behave like NumPy arrays: `.shape`, `@`, `*`, broadcasting,
-`.sum(dim=0)`, `.T`. Two differences to know:
+### Key Differences Between NumPy and PyTorch
 
-| NumPy | PyTorch |
-|---|---|
-| `axis=0` | `dim=0` |
-| default float64 | networks use **float32** (half the memory, much faster on GPUs) |
-| labels any int type | class labels must be **int64** for cross-entropy |
-| `float(x)` for a 1-element array | `x.item()` |
+| Feature | NumPy Array | PyTorch Tensor | Reason / Caveat |
+|---|---|---|---|
+| **Dimension index** | `axis=0` | `dim=0` | Syntax convention |
+| **Default Float** | `float64` (double) | **`float32`** (single) | Halves memory bandwidth; optimized on GPU tensor cores |
+| **Class Labels** | Any integer type | **`int64` (`torch.long`)** | Mandatory for `nn.CrossEntropyLoss` |
+| **Scalar extraction** | `float(arr)` | `tensor.item()` | Extracts native Python float from single-element tensor |
+| **Hardware** | CPU only | CPU, CUDA (`cuda`), Apple Silicon (`mps`) | Seamless tensor dispatch via `.to(device)` |
 
-## 2. Autograd
+---
+
+## 2. Autograd Engine
 
 ```python
 x = torch.tensor(3.0, requires_grad=True)
 y = x * x
 y.backward()
-x.grad            # tensor(6.)
+print(x.grad)  # tensor(6.0)
 ```
 
-Three rules carry over directly from lesson 8:
+Three foundational principles carry over directly from Lesson 8:
 
-- **Gradients accumulate.** Calling `backward` twice adds. Clear with
-  `p.grad.zero_()` or `optimiser.zero_grad()` before each step.
-- **Updates must not be recorded.** Changing a parameter is not part of the
-  model's maths, so it goes inside `with torch.no_grad():`.
-- **Only leaves you asked about get `.grad`.** Tensors created with
-  `requires_grad=True` (your parameters) keep their gradients.
+1. **Gradients Accumulate via `+=`**: Successive `.backward()` calls sum additively into `.grad`. You must explicitly reset gradients via `p.grad.zero_()` or `optimiser.zero_grad()` before each optimization step.
+2. **Parameter Updates Must Bypass the Graph**: Updating parameters is an optimization decision, not a differentiable mathematical model transformation. In-place parameter modification must take place within `with torch.no_grad():` to avoid contaminating the computational DAG.
+3. **Leaf Tensors**: Only user-created tensors with `requires_grad=True` retain `.grad` buffers after backpropagation. Intermediate activation nodes release their gradients automatically to conserve VRAM.
 
-## 3. Lesson 5, with the backward pass deleted
+---
 
-Task 3 rebuilds the XOR network with raw tensors:
+## 3. Lesson 5 XOR Network, with Custom Calculus Deleted
+
+Rebuilding the Lesson 5 XOR network using raw PyTorch tensors:
 
 ```python
-H = torch.sigmoid(X @ W1 + b1)          # lesson 5's forward, unchanged
+H = torch.sigmoid(X @ W1 + b1)          # Exact same forward algebra
 A = torch.sigmoid(H @ W2 + b2)
 loss = ((A - Y) ** 2).mean()
-loss.backward()                          # replaces dA, dZ2, dW2, db2, dH, dZ1, dW1, db1
+loss.backward()                          # Replaces dA, dZ2, dW2, db2, dH, dZ1, dW1, db1
 ```
 
-The test compares PyTorch's update with your lesson 5 formulas to 12 decimal
-places. They agree because they are the same chain rule, applied by a machine.
+Testing PyTorch's computed gradients against Lesson 5's hand-derived analytical formulas yields numerical agreement to 12 decimal places. They are the exact same multivariable chain rule, computed automatically.
 
-## 4. `nn.Module`: lesson 6's bricks
+---
 
-| You wrote (lesson 6) | PyTorch |
-|---|---|
-| `Layer` base class | `nn.Module` |
-| `Dense(64, 32, rng)` | `nn.Linear(64, 32)` |
-| `ReLU()`, `Sigmoid()` | `nn.ReLU()`, `nn.Sigmoid()` |
-| `Sequential([...])` | `nn.Sequential(...)`, or your own `nn.Module` subclass |
-| `model.params()` | `model.parameters()` |
-| `layer.backward(dY)` | never written: autograd |
-| He initialisation (lesson 7) | Chosen for you (`nn.Linear` uses a similar scaled uniform) |
+## 4. `nn.Module`: Lesson 6's Bricks in PyTorch
 
-A custom module creates its layers in `__init__` and says how data flows in
-`forward`. Calling `model(X)` runs `forward`.
+Every structural component written in Lesson 6 maps 1-to-1 to PyTorch:
 
-**One gotcha: weights are stored transposed.** `nn.Linear(d_in, d_out)` stores
-`weight` with shape **(d_out, d_in)** and computes `X @ weight.T + bias`. Your
-`Dense` stored `W` as (d_in, d_out) and computed `X @ W + b`. Same maths, other
-layout. Task 4 loads your lesson 6 weights into a PyTorch model and checks the
-outputs match exactly, which only works once you transpose.
+| Built by Hand (Lesson 6) | PyTorch Equivalent | Responsibility |
+|---|---|---|
+| `Layer` abstract base | `nn.Module` | Base interface for model components |
+| `Dense(d_in, d_out)` | `nn.Linear(d_in, d_out)` | Affine projection with learned parameters |
+| `ReLU()`, `Sigmoid()` | `nn.ReLU()`, `nn.Sigmoid()` | Non-linear activation layers |
+| `Sequential([...])` | `nn.Sequential(...)` | Sequential container module |
+| `model.params()` | `model.parameters()` | Generator of learnable tensor parameters |
+| `layer.backward(dY)` | Built-in Autograd | Handled transparently by backward C++ graph |
+| `he_normal` (Lesson 7) | `init.kaiming_normal_` | Variance-calibrated parameter initialization |
 
-## 5. The training loop every PyTorch project has
+### The Layout Trap: Transposed Weights in `nn.Linear`
 
-| You wrote (lessons 6–7) | PyTorch |
-|---|---|
-| `minibatches(X, y, 32, rng)` | `DataLoader(TensorDataset(X, y), batch_size=32, shuffle=True)` |
-| `softmax` + `cross_entropy` + `cross_entropy_backward` | `nn.CrossEntropyLoss()`, which takes **logits** |
-| `SGD`, `Momentum`, `Adam` (lesson 7) | `torch.optim.SGD`, `torch.optim.SGD(momentum=0.9)`, `torch.optim.Adam` |
-| `optimiser.step()` | `optimiser.step()` |
-| clearing `.grad` (lesson 8) | `optimiser.zero_grad()` |
-| `accuracy(model, X, y)` | `model(X).argmax(dim=1) == y`, inside `torch.no_grad()` |
+`nn.Linear(d_in, d_out)` allocates its weight parameter with shape **`(d_out, d_in)`**, computing:
 
-Per batch:
+$$Y = X W^T + b$$
+
+In our scratch implementation, `Dense` stored $W$ with shape `(d_in, d_out)` and computed $X W + b$.
+The underlying linear algebra is completely identical, but when loading numpy weights into PyTorch:
+```python
+# Must transpose when copying from scratch Dense weights:
+model.hidden.weight.copy_(torch.tensor(dense.W.T))
+```
+
+---
+
+## 5. The Canonical PyTorch Training Loop
+
+| Built by Hand (Lessons 6–7) | PyTorch Equivalent | Function |
+|---|---|---|
+| `minibatches(X, y, 32, rng)` | `DataLoader(TensorDataset(X, y), batch_size=32, shuffle=True)` | Multithreaded batching and shuffling |
+| `softmax` + `cross_entropy` | `nn.CrossEntropyLoss()` | Fused log-sum-exp cross-entropy taking raw **logits** |
+| `Adam` (Lesson 7) | `torch.optim.Adam(model.parameters(), lr=1e-3)` | Adaptive moment estimation |
+| `EarlyStopping` (Lesson 7) | PyTorch Lightning / Custom hook | Checkpoint saving and validation monitoring |
+
+### The Universal 4-Line Optimization Step
+
+Every supervised deep learning model in PyTorch executes this exact sequence per minibatch:
 
 ```python
-optimiser.zero_grad()                   # lesson 8: clear accumulated blame
-loss = loss_fn(model(X_batch), y_batch) # forward + loss; the graph builds itself
-loss.backward()                         # every parameter's .grad
-optimiser.step()                        # lesson 7's update rule
+optimiser.zero_grad()                   # 1. Clear previous gradient accumulations
+loss = loss_fn(model(X_batch), y_batch) # 2. Forward pass and loss evaluation
+loss.backward()                         # 3. Dynamic reverse-mode backpropagation
+optimiser.step()                        # 4. Parameter update via optimizer rule
 ```
 
-**`model.train()` and `model.eval()`** switch layers that behave differently
-during training, such as dropout (lesson 7 §8). This model has none, but the
-habit matters as soon as one does.
+### `model.train()` vs `model.eval()`
+Calling `model.eval()` disables training-specific behaviors like Dropout random deactivations and switches BatchNorm to running population statistics. Always set `model.eval()` before evaluating validation metrics.
 
-## 6. What PyTorch adds that you did not build
+---
 
-- **GPUs.** `model.to("cuda")` or `model.to("mps")` (Apple Silicon) and the same
-  code runs many times faster on large models.
-- **Hundreds of bricks:** convolutions for images, attention for sequences,
-  normalisation layers, embeddings. Each obeys lesson 6's contract; you never
-  write their backward.
-- **Saving and loading:** `torch.save(model.state_dict(), "model.pt")`.
-- **Pretrained models,** which lesson 10 uses.
+## 6. What PyTorch Adds Beyond Scratch Code
 
-## 7. The limits of this step
-
-- **It hides everything.** `loss.backward()` and `optimiser.step()` are so short
-  they teach nothing, which is why they come last. When training misbehaves you
-  debug with lessons 2–7, not with PyTorch.
-- **Training from scratch needs data.** 1,437 digit images were enough for 8×8
-  digits. A photo classifier trained from scratch would need hundreds of
-  thousands of images. Lesson 10 shows how to borrow what someone else's model
-  already learned.
-
-**TensorFlow and Keras** offer the same ideas: `tf.GradientTape` is autograd,
-`keras.layers.Dense` is `nn.Linear` (stored the lesson 6 way round), and
-`model.fit` is the training loop. Having built the ideas, you can read either.
+1. **Hardware Acceleration**: Transferring computations to GPU or Apple Silicon takes one method call: `model.to("cuda")` or `model.to("mps")`.
+2. **Comprehensive Architecture Zoo**: Hundreds of pre-built layers (Convolutions, Multi-Head Attention, LayerNorm, LSTMs).
+3. **Serialization & Checkpointing**: `torch.save(model.state_dict(), "checkpoint.pt")`.
+4. **Pretrained Model Ecosystem**: HuggingFace and torchvision model hubs, enabling transfer learning (Lesson 10).

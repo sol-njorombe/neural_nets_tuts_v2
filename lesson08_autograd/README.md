@@ -4,60 +4,147 @@
 
 ## What you build
 
-A `Value` class: a number that records the arithmetic done with it, and can then
-compute the gradient of any expression built from it. Then a given network
-library, written on top of your `Value` with no backward methods at all, learns
-XOR with two hidden layers.
+A complete reverse-mode automatic differentiation engine from scratch:
+- A `Value` class that records computational lineage as standard Python arithmetic expressions are evaluated.
+- Local derivative implementations for `__mul__`, `__pow__`, `exp`, `tanh`, and `relu`.
+- A directed acyclic graph (DAG) topological sort engine with automatic backpropagation (`backward()`).
+- Verification against `tiny_nn.py`, which trains a multi-layer network on XOR without writing a single line of custom calculus.
 
 ## Setup
 
+Run the test suite and demonstration script:
+
 ```bash
 pytest lesson08_autograd -x
-python lesson08_autograd/tiny_nn.py      # after task 3
+python lesson08_autograd/tiny_nn.py
 ```
+
+---
 
 ## Tasks
 
-`__add__` is a fully worked example. Read it line by line first.
+`__add__` is provided as a complete reference implementation. Study its pattern carefully before proceeding.
 
-| # | What | Theory |
-|---|---|---|
-| 1 | `__mul__` | §3 |
-| 2 | `__pow__`, `exp`, `tanh`, `relu` | §3 |
-| 3 | `topological_order`, `backward` | §4 |
+| # | What | Target Operation | Theory Reference |
+|---|---|---|---|
+| 1 | `__mul__` | Operator `*` and `__rmul__` | [THEORY §3](THEORY.md#3-local-chain-rule-each-operation-knows-only-its-local-slope) |
+| 2 | `__pow__`, `exp`, `tanh`, `relu` | Power and activation primitives | [THEORY §3](THEORY.md#3-local-chain-rule-each-operation-knows-only-its-local-slope) |
+| 3 | `topological_order`, `backward` | Graph traversal and backpropagation | [THEORY §4](THEORY.md#4-running-backpropagation) |
 
-Subtraction, division, negation and `sigmoid` are given, built from your
-operations. Once task 1 passes, `-v` and `a - b` start working; once task 2
-passes, `a / b` and `v.sigmoid()` do too.
+### Task 1: `__mul__`
+- Convert second operand to `Value` if it is a plain `int` or `float`: `other = other if isinstance(other, Value) else Value(float(other))`.
+- Compute forward result: `out = Value(self.data * other.data, children=(self, other), op="*")`.
+- Implement `_backward()` closure:
+  ```python
+  def _backward():
+      self.grad += other.data * out.grad
+      other.grad += self.data * out.grad
+  out._backward = _backward
+  ```
+
+### Task 2: Non-linear and Power Operations
+- `__pow__(n)`: supports scalar powers ($n \in \mathbb{R}$). In `_backward`: `self.grad += (n * (self.data ** (n - 1))) * out.grad`.
+- `exp()`: forward is `math.exp(self.data)`. In `_backward`: `self.grad += out.data * out.grad`.
+- `tanh()`: forward is `math.tanh(self.data)`. In `_backward`: `self.grad += (1.0 - out.data ** 2) * out.grad`.
+- `relu()`: forward is `max(0.0, self.data)`. In `_backward`: `self.grad += (1.0 if self.data > 0 else 0.0) * out.grad`.
+
+### Task 3: Graph Traversal and `backward`
+- `topological_order(root)`:
+  - Recursive depth-first search appending nodes to an ordering list post-order (after visiting children).
+  - Maintains a `visited: set[Value]` to ensure each node appears exactly once.
+- `Value.backward()`:
+  - Seed the root gradient: `self.grad = 1.0`.
+  - Traverse `reversed(topological_order(self))`, calling `v._backward()` on each node.
+
+---
 
 ## Experiments
 
-1. **Print the graph.** Write a short function that walks `topological_order()`
-   and prints each Value's `op`, `data` and `grad`. Use it on the worked example
-   in THEORY §4 and check every row of the table.
-2. **Compare with lesson 0.** Build `tiny_forward` from lesson 0 out of Values
-   (`w * x`, `.sigmoid()`, `** 2`) and check `w.grad` against `tiny_backward`.
-3. **Forget to clear.** Remove `p.grad = 0.0` from `tiny_nn.train`. What happens
-   to training, and why?
-4. **Add an operation.** Add `log` (slope `1/a`) and write cross-entropy for one
-   example with two classes. Check the gradient against lesson 6's `P − one_hot`.
-5. **Speed.** Time one epoch of `tiny_nn.train` on XOR3, then estimate how long
-   one epoch on the digits would take.
+1. **Visualize the Computational DAG**:
+   Write a small helper function iterating through `topological_order(L)`:
+   ```python
+   for v in topological_order(L):
+       print(f"op={v.op!r:>5} | data={v.data:7.3f} | grad={v.grad:7.3f}")
+   ```
+   Run this on $L = (x \cdot w + b)^2$ from [THEORY §4](THEORY.md#4-running-backpropagation) and verify that every computed gradient matches hand calculations.
+2. **Gradient Accumulation Verification**:
+   In `tiny_nn.py`, comment out the line `p.grad = 0.0` before each training step.
+   Observe how training diverges because gradients accumulate across successive epochs.
+3. **Automatic Sigmoid**:
+   Construct sigmoid using arithmetic:
+   ```python
+   x = Value(0.5)
+   s = Value(1.0) / (Value(1.0) + (-x).exp())
+   s.backward()
+   print(x.grad, s.data * (1 - s.data)) # Both equal 0.2350037
+   ```
+   Notice that the analytical sigmoid derivative $\sigma(x)(1 - \sigma(x))$ emerges automatically without writing a dedicated backward rule!
+4. **Custom Operation**:
+   Implement a `.log()` method with derivative $\frac{1}{x}$, and construct binary cross-entropy loss using `Value` objects.
+5. **Runtime Profiling**:
+   Benchmark `tiny_nn.py` on XOR3 and calculate the approximate wall-clock time required to train on 1,437 MNIST images.
 
-## The limit
+---
 
-Correct, general, and slow: one Python object per number. Lesson 9 moves to
-PyTorch, whose tensors are this lesson's idea applied to whole arrays, in
-optimised native code. You will recognise `loss.backward()` and `.grad`.
+## Self-Check Questions
+
+1. **Multivariable Chain Rule**: Where in `Value` is the multivariable chain rule ("paths add") implemented?
+   *(In the `+=` operator inside every `_backward` closure. If a node branches into multiple downstream paths, each path contributes additively to its `.grad`).*
+2. **Topological Invariant**: Why must the computational graph be sorted into reverse topological order before triggering backpropagation?
+   *(Because a node must accumulate all incoming blame from all of its consumers before it passes blame upstream to its children. If visited prematurely, children receive incomplete gradients).*
+3. **Seed Condition**: Why does `backward()` set `self.grad = 1.0` as its initial step?
+   *(Because $\frac{\partial L}{\partial L} = 1.0$. Without this base case seed, all downstream gradients would remain zero).*
+4. **Autonomous Differentiation**: In `tiny_nn.py`, which function derived the gradient of $\tanh$ or the backpropagation equations of the multi-layer network?
+   *(Nobody. The chain rule was evaluated entirely by the autograd engine executing local operations in reverse topological order).*
+5. **Memory and Speed Bottlenecks**: Why is scalar autograd impractical for large vision models?
+   *(Every scalar operation allocates an individual Python object, reference pointers, and a closure on the heap. Modern deep learning requires batched tensor autograd executing on parallel hardware).*
+
+---
+
+## Common Mistakes & Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---|---|---|
+| In expression `a + a`, `a.grad` is 1.0 instead of 2.0 | Used `=` instead of `+=` in `_backward()` | Always accumulate gradients: `self.grad += ...` |
+| All computed gradients are 0.0 | Forgot to seed root gradient `self.grad = 1.0` in `backward()` | Set `self.grad = 1.0` before topological loop |
+| `TypeError: 'Value' object is not iterable` | Wrote `children=(self)` instead of `(self,)` | Use a 1-tuple with trailing comma: `children=(self,)` |
+| In expression `b * b`, gradients are incorrect | Node visited multiple times or traversed out of order | Ensure `topological_order` uses a `visited` set and appends post-order |
+| `exp()` gradient incorrect | Used `self.data` instead of `out.data` | In `exp`, derivative is $e^x = \text{out.data}$: `self.grad += out.data * out.grad` |
+
+---
 
 <details>
 <summary>Hints (open only after trying)</summary>
 
-- **Every operation** follows `__add__`'s shape: build `out`, define `_backward`
-  inside the method, attach it with `out._backward = _backward`, return `out`.
-- **One-input operations** pass `(self,)` as the children: note the comma.
-- **exp / tanh:** the slope uses `out.data`, which is already computed.
-- **topological_order:** a nested `visit` function and a `visited` set; append
-  after the loop over children.
-- **backward:** don't forget `self.grad = 1.0` first, or every gradient stays 0.
+- **`__mul__`**:
+  ```python
+  other = other if isinstance(other, Value) else Value(float(other))
+  out = Value(self.data * other.data, children=(self, other), op="*")
+  def _backward():
+      self.grad += other.data * out.grad
+      other.grad += self.data * out.grad
+  out._backward = _backward
+  return out
+  ```
+- **`exp`**:
+  ```python
+  out = Value(math.exp(self.data), children=(self,), op="exp")
+  def _backward():
+      self.grad += out.data * out.grad
+  out._backward = _backward
+  return out
+  ```
+- **`topological_order`**:
+  ```python
+  order = []
+  visited = set()
+  def visit(v: Value) -> None:
+      if v not in visited:
+          visited.add(v)
+          for child in v.children:
+              visit(child)
+          order.append(v)
+  visit(root)
+  return order
+  ```
 </details>

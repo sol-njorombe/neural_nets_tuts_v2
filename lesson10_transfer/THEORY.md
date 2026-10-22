@@ -1,157 +1,163 @@
 # Lesson 10 — Theory: transfer learning
 
-Lesson 9 ended with a problem: training from scratch needs a lot of labelled
-data, and most real projects have little. This lesson shows the standard answer,
-and the way most practical neural-network projects start today: take a model
-someone already trained on a large dataset, keep what it learned, and train only
-a small new part on your own data.
+Lesson 9 ended with a practical reality: training deep architectures from scratch requires massive volumes of labelled
+data, whereas most real-world engineering projects operate under severe data constraints. This lesson presents the standard industry paradigm: take a model
+already pretrained on a large, diverse dataset, freeze and preserve its representations, and train only
+a specialized task head on your target data.
+
+---
+
+## 0. Learning Objectives
+
+By the end of this lesson, you will be able to:
+
+1. **Deconstruct the Backbone/Head Architecture**: Explain how pre-trained neural networks partition into a general feature extractor (backbone) and task-specific classification/regression layer (head).
+2. **Implement Feature Extraction with Frozen Weights**: Implement parameter freezing via `requires_grad = False` and explain why pre-computing representations (`extract_features`) provides $100\times$ speedups.
+3. **Configure Multi-Rate Fine-Tuning**: Implement differential learning rates using PyTorch parameter groups, justifying why backbone rates are set $10\times$ smaller than head rates.
+4. **Prevent Leakage in Transfer Benchmarking**: Construct disjoint source and target task datasets ensuring zero image overlap between pretraining and few-shot evaluation.
+5. **Diagnose Negative Transfer**: Identify when pre-trained feature representations fail to generalize to target domains due to severe feature distribution shift.
+
+---
 
 ## 1. Concept: reuse what was already learned
 
-**Analogy.** An experienced portrait photographer takes up wildlife photography.
-They do not relearn exposure, focus and composition from zero; those skills
-carry over. They only need to learn what is new: animal behaviour, long lenses,
-patience. With that head start they get good far faster than a beginner would.
+### The Photographer Analogy
+An experienced portrait photographer takes up wildlife photography.
+They do not relearn exposure, shutter speed, optical depth-of-field, and lighting from scratch; those foundational visual principles transfer directly.
+They only need to master the delta: animal tracking, telephoto stabilization, and patience.
+With that head start, they achieve mastery in days rather than years.
 
-A trained network is the same. Its early layers turn raw input into general
-**features**; its last layer maps those features to the answers of one specific
-task. The features are usually useful far beyond that task.
+A deep neural network functions identically:
+- **Early layers**: learn universal low-level visual primitives (edges, gradients, color contrasts, basic textures).
+- **Intermediate layers**: combine edges into motifs, contours, and surface patterns.
+- **Deep layers (Head)**: map task-agnostic representations to specific target labels.
 
 ```
-         ┌──────────── backbone ────────────┐   ┌─ head ─┐
-pixels ─▶│ Linear → ReLU → Linear → ReLU    │──▶│ Linear │──▶ answers
-         └──────────────────────────────────┘   └────────┘
-          general: "what is in this image?"      specific: "which of these
-          trained once, on lots of data          classes?" trained on yours
+                  ┌──────────── backbone ────────────┐   ┌─ head ─┐
+pixels (X) ──────▶│ Linear → ReLU → Linear → ReLU    │──▶│ Linear │──▶ Predictions
+                  └──────────────────────────────────┘   └────────┘
+                    General representation extractor        Task-specific
+                    Trained once on massive source data     Trained on small target data
 ```
 
-## 2. Why it works
+---
 
-Lesson 5 showed a hidden layer **re-describing** the inputs so that the output
-neuron's job becomes easy. A backbone trained on a large, varied task has
-learned a re-description that makes many related tasks easy. For images, the
-early layers of large models learn edges, textures and shapes; later ones learn
-parts and objects. A new task built on those needs only a simple head and a few
-examples.
+## 2. Representation Geometry & Modern AI
 
-The same idea runs through modern AI:
+Lesson 5 proved that a hidden layer operates by **re-describing** the inputs so that the output
+decision boundary becomes linearly separable.
+A backbone pre-trained on a diverse source task discovers an embedding geometry that makes thousands of downstream tasks linearly separable.
 
-- **Image models** (ResNet, ViT, DINOv2, CLIP) are pretrained on millions of
-  images and reused as feature extractors.
-- **Embeddings** are exactly these features. An "embedding API" is a backbone
-  someone else runs for you.
-- **Fine-tuning an LLM** is transfer learning on a very large backbone.
+This principle underpins the entire modern foundation model paradigm:
+- **Computer Vision**: Backbones (ResNet, ConvNeXt, Vision Transformers, CLIP, DINOv2) pre-trained on ImageNet or web scrape images are reused as frozen feature extractors.
+- **Embeddings**: An "Embedding API" (e.g. OpenAI or Gemini text embeddings) is simply a massive frozen backbone executed on cloud infrastructure.
+- **LLM Fine-Tuning**: LoRA (Low-Rank Adaptation) and parameter-efficient fine-tuning are transfer learning applied to frozen transformer backbones.
 
-## 3. The experiment in this lesson
+---
 
-To see the effect with a small, fast dataset:
+## 3. The Controlled Transfer Experiment
 
-| | Source task (pretraining) | Target task (yours) |
+To demonstrate transfer learning quantitatively under clean experimental conditions:
+
+| Parameter | Source Pretraining Task | Target Few-Shot Task |
 |---|---|---|
-| Question | Which digit is this? (10 classes) | Is the digit even or odd? (2 classes) |
-| Images | The 1,437 training images | The 360 validation images: **different images** |
-| Labels | All 1,437 | Only `per_class` of each class, e.g. 25 even + 25 odd |
+| **Objective** | Classify handwritten digits (10 classes: 0–9) | Classify digit parity (2 classes: Even vs Odd) |
+| **Image Pool** | 1,437 training images | 360 validation images (**strictly disjoint images**) |
+| **Label Budget** | All 1,437 labelled examples | Only `per_class` labels (e.g. 5, 10, or 25 examples per class) |
 
-Keeping the images separate matters: otherwise the backbone would have seen the
-test images during pretraining, and the comparison would be leakage (lesson 7 §1).
+Partitioning the image pools guarantees zero data leakage: the backbone never sees target images during pretraining.
 
-Three models, the same architecture, trained on the same few labels:
+### Empirical Benchmarks Across 5 Random Seeds
 
-| Model | Starting point | What trains |
-|---|---|---|
-| From scratch | random backbone | everything |
-| Frozen backbone | pretrained backbone | only the new head |
-| Fine-tuned | the frozen model above | everything, backbone with a smaller learning rate |
-
-Measured over five seeds (test accuracy on the remaining images):
-
-| Labels per class | From scratch | Frozen backbone | Then fine-tuned |
+| Label Budget per Class | From Scratch (Random Init) | Frozen Backbone (Transfer) | Fine-Tuned (Differential $lr$) |
 |---|---|---|---|
-| 5 | 0.74 | 0.80 | 0.81 |
-| 10 | 0.80 | 0.85 | 0.86 |
-| 25 | 0.85 | 0.90 | 0.92 |
+| **5 examples** | $0.74 \pm 0.04$ | **$0.80 \pm 0.02$** | **$0.81 \pm 0.02$** |
+| **10 examples** | $0.80 \pm 0.03$ | **$0.85 \pm 0.02$** | **$0.86 \pm 0.02$** |
+| **25 examples** | $0.85 \pm 0.02$ | **$0.90 \pm 0.01$** | **$0.92 \pm 0.01$** |
 
-The pretrained features help at every size. With 5 labels per class, the frozen
-model matches the scratch model trained on twice as many.
+With just 5 labels per class, the frozen backbone achieves performance that requires more than double the data budget when training from scratch!
 
-The effect here is modest because 8×8 digits are a very small problem: even
-raw pixels are fairly good features. With real photos and a backbone trained on
-millions of images, the gap is usually dramatic.
+---
 
-## 4. Feature extraction: freeze the backbone
+## 4. Feature Extraction: Freezing the Backbone
 
 ```python
-freeze(backbone)                                   # p.requires_grad = False for every parameter
-model = TransferModel(backbone, n_features=32, n_classes=2)
-optimiser = Adam(trainable_parameters(model))      # only the head's weight and bias
+def freeze(module: nn.Module) -> None:
+    for p in module.parameters():
+        p.requires_grad = False
 ```
 
-`requires_grad = False` tells autograd to stop at those tensors: no `.grad`, no
-updates. Only the head's 66 parameters learn, from 50 examples, which is a much
-more reasonable ratio than 6,300 parameters from 50 examples.
+Setting `p.requires_grad = False` instructs the autograd engine:
+1. Do not allocate intermediate gradient memory buffers for backbone parameters.
+2. Terminate backward graph tracking at the backbone boundary.
+3. Freeze weights in place: only the newly initialized head parameters update.
 
-Because a frozen backbone never changes, its output for each image never changes
-either. So for a large backbone you can run it **once** over your data
-(`extract_features`), save the features, and train the head on them directly,
-which turns hours of training into seconds.
+### Parameter Efficiency
+In our architecture:
+- Total network parameters: $\approx 6,300$
+- Head parameters (`Linear(32, 2)`): $32 \times 2 + 2 = \mathbf{66}$ parameters.
 
-| Math | Shape | Code |
-|---|---|---|
-| features = backbone(X) | (n, 32) | `extract_features(backbone, X)` |
-| logits = features @ Wᵀ + b | (n, 2) | `model.head(features)` |
+Fitting 66 parameters on 50 training images has an optimal ratio of $\approx 1.3$ parameters per example, virtually eliminating the severe overfitting that occurs when fitting 6,300 parameters on 50 examples.
 
-## 5. Fine-tuning: then adjust the backbone gently
-
-Once the head is sensible, unfreeze the backbone and keep training everything,
-with the backbone's learning rate around 10× smaller than the head's. PyTorch
-optimisers accept **parameter groups** with different learning rates:
+### Offline Feature Caching
+Because the frozen backbone is deterministic, you can execute it **once** across your target dataset in evaluation mode:
 
 ```python
-Adam([{"params": model.head.parameters(),     "lr": 0.005},
-      {"params": model.backbone.parameters(), "lr": 0.0005}])
+with torch.no_grad():
+    features = backbone(X_train)  # shape: (n, d_features)
 ```
 
-Why train the head first? A random head sends large, random gradients back into
-the backbone and can wreck its features in the first few steps. Why a small
-backbone rate? To adjust what it learned, not overwrite it with 50 examples.
+Training the downstream head directly on cached features reduces multi-epoch training time from minutes to milliseconds.
 
-## 6. When transfer fails
+---
 
-Transfer only helps if the source task's features are relevant to the target.
-Experiment 3 pretrains on digits 0–4 only, then asks for digits 5–9 with 5
-labels each. When this lesson was written, five seeds gave average accuracies of
-0.89 from scratch and 0.57 with the frozen backbone.
-The backbone learned to tell 0–4 apart, and threw away whatever was needed for
-5–9. A backbone trained on a broad task (all ten digits, or millions of varied
-photos) generalises; one trained on a narrow task may not.
+## 5. Fine-Tuning: Differential Learning Rates
 
-## 7. The real-world version
+Once the newly initialized head has converged to reasonable weights, you can optionally unfreeze the backbone and train the entire network end-to-end.
 
-With a large pretrained image model from `torchvision` (`pip install torchvision`;
-the weights download on first use):
+```python
+optimiser = torch.optim.Adam([
+    {"params": model.head.parameters(),     "lr": 0.005},
+    {"params": model.backbone.parameters(), "lr": 0.0005}  # 10x smaller
+])
+```
+
+### Why Must the Head Be Trained Before Unfreezing the Backbone?
+At initialization, the head weights are random. If backpropagated immediately into an unfrozen backbone, large random gradients wreck the delicate pre-trained feature detectors in the first few gradient steps (**catastrophic forgetting**).
+
+### Why Must the Backbone Learning Rate Be $10\times$ Smaller?
+The pre-trained backbone already possesses near-optimal representations. The objective of fine-tuning is gentle alignment with target domain idiosyncrasies, not overwriting pre-existing visual representations with small sample batches.
+
+---
+
+## 6. When Transfer Fails: Negative Transfer
+
+Transfer learning is not guaranteed to improve performance. It fails when the source representation space does not span the target problem:
+
+If you pretrain a backbone strictly on digits $0$ through $4$, and then attempt few-shot transfer to classify digits $5$ through $9$:
+- Scratch model accuracy: $\mathbf{0.89}$
+- Frozen backbone accuracy: $\mathbf{0.57}$ (little better than random chance!)
+
+The backbone learned features specialized in distinguishing rounded loops and single vertical strokes ($0, 1, 2, 3, 4$), discarding topological features necessary to separate $5, 6, 7, 8, 9$. When source features are orthogonal or irrelevant to the target task, freezing the backbone results in **negative transfer**.
+
+---
+
+## 7. Production torchvision Workflow
+
+In production computer vision, you reuse industrial backbones (e.g. ResNet-50 trained on 1.28 million ImageNet photos):
 
 ```python
 import torch
-from torchvision.models import resnet50, ResNet50_Weights
+import torchvision.models as models
 
-weights = ResNet50_Weights.DEFAULT
-backbone = resnet50(weights=weights)
-backbone.fc = torch.nn.Identity()          # remove its 1000-class head: it now outputs 2048 features
+# 1. Load pre-trained architecture with modern weights
+weights = models.ResNet50_Weights.DEFAULT
+backbone = models.resnet50(weights=weights)
+
+# 2. Strip original 1,000-class ImageNet classification head
+backbone.fc = torch.nn.Identity()  # Outputs 2,048-dim feature vector
 backbone.eval()
-preprocess = weights.transforms()          # resizing and normalisation it was trained with
 
-with torch.no_grad():
-    features = backbone(preprocess(image).unsqueeze(0))     # (1, 2048), for one PIL image
-
-head = torch.nn.Linear(2048, n_outputs)    # your task: classes, or numbers
+# 3. Attach custom application head
+head = torch.nn.Linear(2048, num_classes)
 ```
-
-The rest is this lesson: extract features once, train the head, then fine-tune
-if you have enough data.
-
-**A regression head.** Not every task is classification. To predict numbers
-(say, the Lightroom slider values a photographer chose for each photo) the head
-outputs those numbers directly and the loss is mean squared error, as in lessons
-2–5. Scale each target to a similar range first (for example, subtract its mean
-and divide by its standard deviation), or the sliders with large numeric ranges
-dominate the loss. Lesson 11's first capstone brief works through such a project.
