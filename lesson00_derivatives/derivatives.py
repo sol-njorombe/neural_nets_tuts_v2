@@ -32,13 +32,15 @@ def numerical_derivative(f: ScalarFn, x: float, h: float = 1e-5) -> float:
 
     >>> numerical_derivative(lambda x: x * x, 3.0)   # ≈ 6.0
     """
-    return (f(x + h) - f(x - h)) / (2 * h)
+    # TODO
+    raise NotImplementedError("TODO: implement numerical_derivative()")
 
 
 # --- Task 2: analytic derivatives (THEORY §3) --------------------------------
 def d_square(x: float) -> float:
     """The exact derivative of x², written by hand."""
-    return 2 * x
+    # TODO
+    raise NotImplementedError("TODO: implement d_square()")
 
 
 def d_sigmoid(z: float) -> float:
@@ -46,8 +48,8 @@ def d_sigmoid(z: float) -> float:
 
     THEORY §5 derives the neat form: if a = σ(z), then dσ/dz = a(1 - a).
     """
-    a = sigmoid(z)
-    return a * (1 - a)
+    # TODO
+    raise NotImplementedError("TODO: implement d_sigmoid()")
 
 
 # --- Task 3: the chain rule (THEORY §5) --------------------------------------
@@ -60,7 +62,8 @@ def chain_rule(d_outer: ScalarFn, inner: ScalarFn, d_inner: ScalarFn, x: float) 
 
     Slope of the outer function, measured AT inner(x), times the slope of the inner one.
     """
-    return d_outer(inner(x)) * d_inner(x)
+    # TODO
+    raise NotImplementedError("TODO: implement chain_rule()")
 
 
 # --- Task 4: partial derivatives and the gradient (THEORY §4) ----------------
@@ -69,16 +72,14 @@ def partial_derivative(f: MultiFn, args: Sequence[float], i: int, h: float = 1e-
 
     Do not modify the caller's sequence: work on copies.
     """
-    up = list(args)
-    down = list(args)
-    up[i] += h
-    down[i] -= h
-    return (f(up) - f(down)) / (2 * h)
+    # TODO
+    raise NotImplementedError("TODO: implement partial_derivative()")
 
 
 def numerical_gradient(f: MultiFn, args: Sequence[float], h: float = 1e-5) -> list[float]:
     """∇f: every partial derivative of f at args, in order. Length = len(args)."""
-    return [partial_derivative(f, args, i, h) for i in range(len(args))]
+    # TODO
+    raise NotImplementedError("TODO: implement numerical_gradient()")
 
 
 # --- Task 5: several paths (THEORY §6) ---------------------------------------
@@ -86,14 +87,12 @@ def sum_over_paths(paths: Sequence[Sequence[float]]) -> float:
     """The total derivative when an input reaches the output by several routes.
 
     Each path is the list of local slopes met along one route, input to output.
-    Multiply along each path, then add the paths together planning.
+    Multiply along each path, then add the paths together.
 
     >>> sum_over_paths([[2.0, 3.0], [4.0]])   # 2*3 + 4 = 10
     """
-    def path_product(prod_paths: Sequence[float]) -> float:
-        return math.prod(list(prod_paths))
-
-    return sum([path_product(path) for path in paths])
+    # TODO
+    raise NotImplementedError("TODO: implement sum_over_paths()")
 
 
 # --- Task 6: backprop on a one-weight network (THEORY §7) --------------------
@@ -111,10 +110,8 @@ def tiny_forward(w: float, x: float, y: float) -> Trace:
 
         z = w·x      a = σ(z)      L = (a - y)²
     """
-    z = w * x
-    a = sigmoid(z)
-    l = (a - y)**2
-    return Trace(z, a, l)
+    # TODO
+    raise NotImplementedError("TODO: implement tiny_forward()")
 
 
 def tiny_backward(trace: Trace, x: float, y: float) -> float:
@@ -123,7 +120,5 @@ def tiny_backward(trace: Trace, x: float, y: float) -> float:
     Multiply the three local slopes (THEORY §7):
         dL/da = 2(a - y)      da/dz = a(1 - a)      dz/dw = x
     """
-    dl_da = 2 * (trace.a - y)
-    da_dz = trace.a * (1 - trace.a)
-    dz_dw = x
-    return dl_da * da_dz * dz_dw
+    # TODO
+    raise NotImplementedError("TODO: implement tiny_backward()")

@@ -85,8 +85,8 @@ The type hints are there to answer "what is this variable?" as you type.
 hints at the bottom of the README, then look at `solutions/`.
 `pytest --solutions` runs the tests against the reference answers.
 
-**Teaching someone?** Each lesson's `TEACHING.md` has learning objectives,
-discussion questions, and the mistakes learners usually make.
+**Teaching or self-studying?** Learning objectives are front and center in each lesson's
+`THEORY.md §0`, while self-check questions and common troubleshooting are built into its `README.md`.
 
 ## Lessons
 

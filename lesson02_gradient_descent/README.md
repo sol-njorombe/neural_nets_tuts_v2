@@ -130,6 +130,32 @@ hidden layers and backpropagation to conquer XOR.
 
 ---
 
+## Self-check & discussion questions
+
+Test your mental model:
+1. **Squared vs. Absolute Error**: Why do we square the error $(a - y)^2$ rather than taking its absolute value $|a - y|$? *(Both penalize errors, but squaring is smooth and differentiable everywhere with a continuous linear derivative $2(a - y)$, and punishes large misses quadratically.)*
+2. **Input Blame**: Why is each weight's slope $\frac{\partial L}{\partial w_i}$ equal to $\delta$ multiplied by its input feature $x_i$? What does an input of $0.0$ mean for its weight's gradient?
+3. **Loss curve diagnostics**: Suppose your loss history across epochs reads: $0.25, 0.20, 0.31, 0.18, 0.40 \dots$. What is happening to the optimization, and what hyperparameter should you adjust? *(The learning rate $\eta$ is too large, causing the step to overshoot the valley floor and bounce across the walls; reduce $\eta$.)*
+4. **The XOR ceiling**: The loss on `XOR3` gets stuck near $0.25$ and never drops. Is gradient descent failing or buggy? How would you prove to a colleague that gradient descent is functioning correctly?
+5. **Wiggling versus calculus**: Wiggling was competitive on 3 inputs. Why does nobody train real neural networks using wiggling? *(Because wiggling evaluates $2(K)$ passes per step, which takes millions of passes per step on modern networks, whereas analytical gradients compute slopes for all parameters in a single pass.)*
+6. **Flashcard check**:
+   - An example has $\delta = -0.3$ and input features $(1.0, 0.0, 1.0)$. What are its raw contributions to $\frac{\partial L}{\partial \mathbf{w}}$ before dataset averaging? *$(-0.3, 0.0, -0.3)$.*
+   - If a weight's slope is $+2.0$ and $\eta = 0.1$, what happens to the weight in `step()`? *(It falls by $0.2$.)*
+
+---
+
+## Common mistakes & troubleshooting
+
+| Test failure / symptom | Likely cause | Fix |
+|---|---|---|
+| Gradient check fails by a factor of $n$ | Summed per-example gradients without dividing by $n$ | Divide accumulated gradient sums by $\text{len}(\text{data})$ |
+| Bias gradient wrong, weights right | Multiplied the bias term by an input | $\frac{\partial z}{\partial b} = 1$, so bias gradient is $\delta$ alone without multiplying by $x_i$ |
+| Loss rises during training | Added the gradient instead of subtracting | In `step()`, subtract: $\theta \leftarrow \theta - \text{lr} \cdot \text{slope}$ |
+| `history[0]` test fails | Recorded loss after taking the step | Call `history.append(loss(neuron, data))` **before** calling `step()` |
+| XOR test "fails" because it solved XOR | Passed wrong dataset or changed architecture | A single linear neuron cannot solve XOR; verify you passed `XOR3` |
+
+---
+
 <details>
 <summary>Hints (open only after trying)</summary>
 
@@ -149,4 +175,5 @@ hidden layers and backpropagation to conquer XOR.
   - In `step`, ensure you subtract: `neuron.w[i] -= lr * grads.dw[i]`.
   - In `train`, record `history.append(loss(neuron, data))` **before** calling `step()`.
 </details>
+
 

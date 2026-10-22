@@ -10,6 +10,16 @@ This lesson builds the self-tuning loop that powers modern neural networks:
 2. **Gradient descent**: an efficient calculus-based method to adjust every knob in the direction of lower loss.
 3. **The linear separability limit**: why a single neuron can solve OR and AND, but hits a mathematical wall on XOR.
 
+## Learning objectives
+
+By the end of this lesson, you will be able to:
+1. Explain why training uses a smooth differentiable loss function (MSE) rather than discrete accuracy.
+2. Formulate the gradient descent update rule and explain the mathematical role of the minus sign and learning rate $\eta$.
+3. Derive $\frac{\partial L}{\partial w_i} = \frac{1}{n}\sum \delta_k x_{ki}$ and $\frac{\partial L}{\partial b} = \frac{1}{n}\sum \delta_k$ using the 3-link chain rule, naming every term.
+4. Diagnose suboptimal learning rates (too small vs. overshooting/diverging) from loss history curves.
+5. Verify analytical gradients against independent numerical central differences (gradient checking).
+6. Explain geometrically using the 3D unit cube why a single neuron provably cannot compute XOR.
+
 ---
 
 ## 1. The loss: measuring wrongness

@@ -20,15 +20,14 @@ lesson, check it against this page.
 
    | File | Purpose |
    |---|---|
-   | `THEORY.md` | Concept → analogy (only where it helps) → math → worked example with small numbers you can check by hand → diagram |
-   | `README.md` | Setup, tasks, commands to run, experiments, and the limit you will hit |
-   | `TEACHING.md` | Learning objectives, discussion questions, common mistakes, what to check when you are the teacher |
+   | `THEORY.md` | Learning objectives → concept → analogy (only where it helps) → math → worked example with small numbers you can check by hand → diagrams |
+   | `README.md` | Setup, tasks, commands to run, experiments, self-check questions, common mistakes & troubleshooting, hints, and the limit |
    | `<name>.py` | The learner's file: typed stubs with TODOs |
    | `test_<name>.py` | The specification, as tests |
 
    The reference solution lives in `solutions/<lesson>/<name>.py`. The capstone
    (lesson 11) is the one exception: it has no code file or tests, and its
-   `TEACHING.md` holds a review rubric instead.
+   `README.md` holds a review rubric instead.
 3. **Every lesson ends with its limit:** the problem that motivates the next lesson.
 4. **Lessons are self-contained.** Each starts from working reference code for
    everything before it, so a mistake in one lesson never carries into the next.

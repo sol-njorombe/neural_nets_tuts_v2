@@ -1,189 +1,317 @@
 # Lesson 0 — Theory: derivatives, partial derivatives, the chain rule
 
-Training a neural network is one question asked millions of times:
+Training a neural network boils down to one fundamental question asked millions
+of times across billions of parameters:
 
-> If I turn this knob a little, does the error go up or down, and by how much?
+> *If I turn this knob a microscopic amount, does the error go up or down, and by how much?*
 
-The answer is a derivative. This lesson builds three tools for computing it:
-the plain derivative (one input), the partial derivative (many inputs), and the
-chain rule (many steps). Section 7 combines all three into backpropagation on
-the smallest possible network.
+The mathematical answer is a **derivative**. This lesson builds the three calculus
+tools needed to answer that question everywhere in deep learning:
+1. The **derivative** (sensitivity of a function of one input).
+2. The **partial derivative** and the **gradient** (sensitivities when a function has many inputs).
+3. The **chain rule** (sensitivities through a sequence of operations, and across multiple paths).
+
+In Section 7, we combine all three into **backpropagation on a one-weight network**,
+demonstrating the exact optimization step that every neural network executes during training.
+
+## Learning objectives
+
+By the end of this lesson, you will be able to:
+1. Explain a derivative as a local sensitivity ratio without relying on symbolic formulas.
+2. Compute numerical derivatives via central differences and explain why quadratic error terms cancel out.
+3. Compute partial derivatives by freezing other coordinates and assemble the gradient vector $\nabla f$.
+4. Apply the chain rule across composite functions, evaluating the outer derivative at the intermediate value.
+5. Apply the multivariable chain rule across branching computational paths ("multiply along, add across").
+6. Execute a forward and backward pass on a one-weight network and take a gradient descent step.
 
 ---
 
 ## 1. A derivative is a sensitivity
 
-**Analogy: the shower tap.** Turn the tap a tiny amount and the water
-temperature changes. The derivative is the ratio, degrees of temperature per
-degree of turn, *at the tap's current position*.
+### Analogy: the shower tap
 
-- Large: a touchy tap. A small turn makes a big change.
-- Zero: turning does nothing right now.
-- Negative: turning it up makes the water colder.
+Turn a shower tap a tiny amount $\Delta x$, and the water temperature $f(x)$ changes
+by $\Delta f$. The derivative is the sensitivity ratio:
 
-The words "at the current position" matter. The same tap can be touchy near
-the middle and dead near the end of its range. A derivative is a property of a
-function **at a point**, not of the function as a whole.
+$$\text{Sensitivity} = \frac{\Delta \text{temperature}}{\Delta \text{turn}} = \frac{f(x + \Delta x) - f(x)}{\Delta x}$$
 
-**Math.** For a function `f` of one number:
+- **Large positive**: A touchy tap. A tiny clockwise turn makes the water noticeably hotter.
+- **Zero**: A dead zone. Turning the tap slightly makes no difference right now.
+- **Negative**: Inverted plumbing. Turning the tap up makes the water colder.
 
-```
-df/dx  =  how much f changes per unit change in x, at this x
-       ≈  (change in f) / (small change in x)
-```
+Crucially, sensitivity is a local property **at a specific point**, not a property
+of the tap as a whole. The same tap can be touchy near the middle of its dial and
+completely unresponsive near the extremes.
+
+### Mathematical definition
+
+For a function $f$ of one real number, the derivative $\frac{df}{dx}$ is the limit
+as the nudge shrinks to zero:
+
+$$\frac{df}{dx} = \lim_{h \to 0} \frac{f(x + h) - f(x)}{h}$$
+
+Geometrically, the derivative is the **slope of the tangent line** to the curve of
+$f$ at the point $x$.
+
+---
 
 ## 2. Computing it numerically: the central difference
 
-The definition suggests a method: nudge `x` by a tiny `h` and measure.
+When we do not know an analytical formula for $f$, or when we want an independent
+check on human calculus, we can approximate the derivative by nudging $x$ by a tiny
+step $h$ and measuring the change.
 
-```
-one-sided:   df/dx ≈ ( f(x + h) − f(x) ) / h
-central:     df/dx ≈ ( f(x + h) − f(x − h) ) / 2h      ← use this one
-```
+### One-sided vs. central difference
 
-The central version looks both ways, and its error shrinks much faster as `h`
-shrinks. Worked example, `f(x) = x²` at `x = 1` with a deliberately large `h = 0.5`:
+There are two primary ways to estimate this ratio:
 
-| Method | Calculation | Estimate | True value |
-|---|---|---|---|
-| One-sided | (1.5² − 1²) / 0.5 | 2.5 | 2 |
-| Central | (1.5² − 0.5²) / 1.0 | **2.0** | 2 |
+1. **One-sided (forward) difference**:
+   $$\frac{df}{dx} \approx \frac{f(x + h) - f(x)}{h}$$
+2. **Central difference** (looks symmetrically both ways):
+   $$\frac{df}{dx} \approx \frac{f(x + h) - f(x - h)}{2h}$$
 
-**In code.** Python functions are values, so you can hand one to another function:
+### Why the central difference is dramatically superior: Taylor expansion
+
+By Taylor expansion, any smooth function around $x$ can be written as:
+
+$$f(x + h) = f(x) + f'(x)h + \frac{f''(x)}{2!}h^2 + \frac{f'''(x)}{3!}h^3 + \mathcal{O}(h^4)$$
+$$f(x - h) = f(x) - f'(x)h + \frac{f''(x)}{2!}h^2 - \frac{f'''(x)}{3!}h^3 + \mathcal{O}(h^4)$$
+
+**For the one-sided difference**:
+$$\frac{f(x + h) - f(x)}{h} = f'(x) + \frac{f''(x)}{2}h + \mathcal{O}(h^2) = f'(x) + \mathcal{O}(h)$$
+The leading truncation error is proportional to $h$ (first-order error). If $h = 10^{-5}$,
+the error is around $10^{-5}$.
+
+**For the central difference**, subtracting $f(x - h)$ from $f(x + h)$:
+$$f(x + h) - f(x - h) = 2 f'(x) h + \frac{f'''(x)}{3} h^3 + \mathcal{O}(h^5)$$
+
+Dividing by $2h$:
+$$\frac{f(x + h) - f(x - h)}{2h} = f'(x) + \frac{f'''(x)}{6} h^2 + \mathcal{O}(h^4) = f'(x) + \mathcal{O}(h^2)$$
+
+The quadratic terms $\frac{f''(x)}{2}h^2$ **cancel out entirely**! The leading error
+is proportional to $h^2$ (second-order error). If $h = 10^{-5}$, the error drops from
+$10^{-5}$ down to $\approx 10^{-10}$.
+
+### Worked example: $f(x) = x^2$ at $x = 1$ with $h = 0.5$
+
+The true analytical derivative is $f'(1) = 2(1) = 2.0$.
+
+| Method | Formula | Calculation | Estimate | Error |
+|---|---|---|---|---|
+| **One-sided** | $\frac{f(1.5) - f(1.0)}{0.5}$ | $\frac{1.5^2 - 1.0^2}{0.5} = \frac{2.25 - 1.0}{0.5}$ | **2.5** | $+0.5$ (large error) |
+| **Central** | $\frac{f(1.5) - f(0.5)}{1.0}$ | $\frac{1.5^2 - 0.5^2}{1.0} = \frac{2.25 - 0.25}{1.0}$ | **2.0** | **0.0** (exact for quadratics!) |
+
+### The floating-point trade-off (catastrophic cancellation)
+
+Why not set $h = 10^{-20}$?
+Standard 64-bit floating point numbers (`float` in Python) carry only 53 bits of precision
+(about 15–17 decimal digits).
+
+When $h$ is extremely small (e.g. $10^{-15}$), $x + h$ and $x - h$ differ only in their
+last few digits. Subtracting them causes **catastrophic cancellation**, discarding almost
+all significant digits and leaving floating-point noise.
+
+- $h$ too large ($10^{-1}$): Truncation error dominates.
+- $h$ too small ($10^{-15}$): Floating-point subtraction roundoff dominates.
+- The sweet spot for 64-bit floats: **$h \approx 10^{-5}$** to **$10^{-6}$**.
 
 ```python
-from collections.abc import Callable
-
 def numerical_derivative(f: Callable[[float], float], x: float, h: float = 1e-5) -> float:
-    ...
-
-numerical_derivative(lambda x: x * x, 3.0)    # ≈ 6.0
+    return (f(x + h) - f(x - h)) / (2 * h)
 ```
 
-The numerical derivative is slow (two calls to `f` per input) and approximate,
-but it needs no maths and works on any function. That makes it the perfect
-**referee**: every gradient you write by hand in this course is tested against it.
+The numerical derivative is slow (two function evaluations per input) and approximate,
+but it requires no symbolic calculus and works on arbitrary code. This makes it the
+perfect **automated referee**: every analytical gradient derived in this course is
+tested against it.
+
+---
 
 ## 3. Three ways to get a derivative
 
-| Way | How | Strength | Weakness | Where |
-|---|---|---|---|---|
-| Numerical | Nudge and measure | Works on anything | Slow, approximate | Lesson 0; every test file |
-| Analytic | Derive the formula by hand, type it in | Exact, fast | Redo it for every new function | Lessons 0–7 |
-| Automatic | The program records its own arithmetic and applies the chain rule for you | Exact, fast, no hand work | Machinery to build | Lesson 8, then PyTorch |
+Throughout machine learning, derivatives are computed in three distinct ways:
 
-You only need two analytic results in this lesson: the derivative of `x²` is
-`2x`, and the derivative of the sigmoid (section 5).
+| Method | How it works | Strength | Weakness | Where used in course |
+|---|---|---|---|---|
+| **Numerical** | Nudge inputs by $h$ and measure the ratio | Works on any black-box function | Slow ($2$ evaluations per input), approximate | Lesson 0; test suites (gradient checks) |
+| **Analytical** | Derive the exact symbolic formula on paper, code it | Exact, fast ($1$ evaluation for all inputs) | Must be manually re-derived for every model | Lessons 0–7 |
+| **Automatic** | Record elementary operations on a graph and apply the chain rule automatically | Exact, fast, requires no hand derivation | Complex engine to build | Lesson 8 (autograd), PyTorch |
+
+In this lesson, you write two exact analytical derivatives by hand:
+1. Power rule: $\frac{d}{dx} x^2 = 2x$.
+2. The sigmoid derivative: $\frac{d}{dz} \sigma(z) = \sigma(z)(1 - \sigma(z))$ (derived in Section 5).
+
+---
 
 ## 4. Partial derivatives: several inputs, nudge one
 
-**Concept.** A function of one input has one slope. A function of several inputs
-has one slope **per input**. To get the slope for one input, freeze all the
-others and treat them as constants.
+### Freezing coordinates
 
-**Analogy: a hillside.** Your altitude depends on how far east and how far north
-you stand. There are two slopes: the one you feel stepping east, and the one you
-feel stepping north. Each is measured while the other direction stays put.
+A function of one input has a single slope. A function of several inputs has **one
+slope per input**.
 
-**Notation.** The curly ∂ means "the other inputs are held still":
+To compute the slope for input $x_i$, **freeze all other inputs as fixed constants**
+and take the single-variable derivative with respect to $x_i$.
 
-```
-∂f/∂x  =  how fast f changes as x moves, with every other input frozen
-```
+**Analogy**: Standing on a mountain ridge, your altitude $f(x, y)$ depends on both
+your East-West coordinate $x$ and your North-South coordinate $y$.
+- $\frac{\partial f}{\partial x}$ is the slope you feel when stepping East while keeping your North coordinate locked.
+- $\frac{\partial f}{\partial y}$ is the slope you feel when stepping North while keeping your East coordinate locked.
 
-**Worked example.** `f(x, y) = x²y + 3y` at the point `(2, 5)`, where `f = 35`.
+### Notation: the curly $\partial$
 
-- **∂f/∂x:** treat `y` as a fixed number. `x²y` becomes `2xy`, and `3y` contains
-  no `x`, so it contributes 0. Result: `2xy = 20`.
-- **∂f/∂y:** treat `x` as a fixed number. `x²y` becomes `x²`, and `3y` becomes `3`.
-  Result: `x² + 3 = 7`.
+The curly symbol $\partial$ distinguishes a partial derivative from a total derivative:
 
-Check by nudging each input on its own:
+$$\frac{\partial f}{\partial x_i} = \lim_{h \to 0} \frac{f(x_0, \dots, x_i + h, \dots) - f(x_0, \dots, x_i - h, \dots)}{2h}$$
 
-| Nudge | f after | Change in f | Predicted: slope × nudge |
+### Worked example: $f(x, y) = x^2 y + 3y$ at $(2, 5)$
+
+At $(2, 5)$, $f(2, 5) = 2^2 \cdot 5 + 3 \cdot 5 = 20 + 15 = 35$.
+
+1. **Compute $\frac{\partial f}{\partial x}$**: Treat $y$ as a constant number.
+   - $\frac{\partial}{\partial x}(x^2 y) = 2xy$.
+   - $\frac{\partial}{\partial x}(3y) = 0$ (contains no $x$, so it acts as a constant).
+   - $\frac{\partial f}{\partial x} = 2xy = 2(2)(5) = \mathbf{20}$.
+
+2. **Compute $\frac{\partial f}{\partial y}$**: Treat $x$ as a constant number.
+   - $\frac{\partial}{\partial y}(x^2 y) = x^2(1) = x^2$.
+   - $\frac{\partial}{\partial y}(3y) = 3$.
+   - $\frac{\partial f}{\partial y} = x^2 + 3 = 2^2 + 3 = \mathbf{7}$.
+
+Check by nudging each input independently by $h = 0.01$:
+
+| Nudge | $f$ after nudge | Actual change $\Delta f$ | Predicted change: $\text{slope} \times h$ |
 |---|---|---|---|
-| x: 2 → 2.01 (y stays 5) | 35.2005 | 0.2005 | 20 × 0.01 = 0.20 |
-| y: 5 → 5.01 (x stays 2) | 35.0700 | 0.0700 | 7 × 0.01 = 0.07 |
+| $x: 2 \to 2.01$ ($y$ stays 5) | $2.01^2 \cdot 5 + 3 \cdot 5 = 35.2005$ | $+0.2005$ | $20 \times 0.01 = \mathbf{+0.20}$ |
+| $y: 5 \to 5.01$ ($x$ stays 2) | $2^2 \cdot 5.01 + 3 \cdot 5.01 = 35.0700$ | $+0.0700$ | $7 \times 0.01 = \mathbf{+0.07}$ |
 
-**The gradient** is the list of every partial derivative, in input order:
+### The gradient vector ($\nabla f$)
 
-```
-∇f(2, 5) = [∂f/∂x, ∂f/∂y] = [20, 7]
-```
+The **gradient** $\nabla f$ is simply the vector containing all partial derivatives,
+arranged in input order:
 
-It has one entry per input: the same length as the inputs. (From lesson 3 on,
-"the same length" becomes "the same shape", and it is the most useful fact in the
-course.) In a neural network the inputs of interest are the **weights**, the
-function is the **loss**, and the gradient says how sensitive the loss is to
-every weight at once.
+$$\nabla f(x, y) = \left[ \frac{\partial f}{\partial x}, \frac{\partial f}{\partial y} \right] = [20, 7]$$
 
-**Three ways.**
+> [!IMPORTANT]
+> **The Shape Rule:**
+> The gradient vector $\nabla f$ **always has the exact same shape and length as the inputs**.
+> In a neural network, the parameters are the inputs to the loss function, so the gradient
+> with respect to the weights has the exact same shape as the weights!
 
 | Math | Shape | Code |
 |---|---|---|
-| ∂f/∂xᵢ | one number | `partial_derivative(f, args, i)` |
-| ∇f = [∂f/∂x₀, …, ∂f/∂xₙ₋₁] | n numbers, like `args` | `numerical_gradient(f, args)` |
+| $\frac{\partial f}{\partial x_i}$ | scalar float | `partial_derivative(f, args, i)` |
+| $\nabla f = [\frac{\partial f}{\partial x_0}, \dots, \frac{\partial f}{\partial x_{n-1}}]$ | length $n$, matching `args` | `numerical_gradient(f, args)` |
+
+---
 
 ## 5. The chain rule: several steps, multiply the slopes
 
-**Concept.** Networks are functions inside functions. When `x` feeds `u` and `u`
-feeds `y`, a nudge to `x` gets scaled once at each step, so the overall
-sensitivity is the **product** of the step sensitivities.
+### Function composition
 
-**Analogy: gears.** Gear A drives B, B drives C. B turns 2 times per turn of A;
-C turns 3 times per turn of B. So C turns 2 × 3 = 6 times per turn of A.
+Neural networks are built by composing functions: an input $x$ produces an intermediate
+activation $u = g(x)$, which then feeds into a downstream operation $y = f(u)$.
 
-```
-   x ──[ slope 2 ]──▶ u ──[ slope 3 ]──▶ y          dy/dx = 2 × 3 = 6
-```
+How sensitive is the final output $y$ to the initial input $x$?
 
-**Why it is a product.** Up close, any smooth function looks like a straight
-line, so a small nudge is just scaled by the slope:
+### Analogy: linked gears
 
-```
-u = g(x)      Δu ≈ g′(x) · Δx
-y = f(u)      Δy ≈ f′(u) · Δu  =  f′(u) · g′(x) · Δx
+Gear A drives Gear B, and Gear B drives Gear C:
+- Gear B rotates $2$ times for every turn of Gear A: $\frac{du}{dx} = 2$.
+- Gear C rotates $3$ times for every turn of Gear B: $\frac{dy}{du} = 3$.
 
-divide by Δx:           dy/dx = f′(u) · g′(x)  =  dy/du · du/dx
-```
+How many times does Gear C turn when Gear A turns once?
 
-**The one trap.** `f′(u)` is measured at `u = g(x)`, the value the inner step
-actually produced, not at `x`.
-
-**Worked example.** `y = (3x + 1)²` at `x = 2`.
-
-| Step | Value | Local slope |
-|---|---|---|
-| inner: u = 3x + 1 | u = 7 | du/dx = 3 |
-| outer: y = u² | y = 49 | dy/du = 2u = **14** (at u = 7, not at x = 2) |
-| total | | dy/dx = 14 × 3 = **42** |
-
-**The sigmoid's derivative, as a chain-rule exercise.**
+$$\frac{dy}{dx} = \frac{dy}{du} \cdot \frac{du}{dx} = 3 \times 2 = \mathbf{6}$$
 
 ```
-σ(z) = 1 / (1 + e⁻ᶻ)  =  (1 + e⁻ᶻ)⁻¹
-
-outer: u⁻¹, slope −u⁻²          inner: u = 1 + e⁻ᶻ, slope −e⁻ᶻ
-
-dσ/dz = −(1 + e⁻ᶻ)⁻² · (−e⁻ᶻ)  =  e⁻ᶻ / (1 + e⁻ᶻ)²  =  σ(z) · (1 − σ(z))
+   x ──[ slope = 2 ]──▶ u ──[ slope = 3 ]──▶ y        dy/dx = 2 × 3 = 6
 ```
 
-The last step is algebra worth doing once on paper. The result is why
-neural-network code stores the sigmoid's *output*: if `a = σ(z)`, the slope is
-simply `a(1 − a)`, with no second exponential. At `z = 0`, `a = 0.5` and the
-slope is 0.25, its maximum. Far from zero the slope is nearly 0. Remember that:
-it comes back as a real problem in lesson 6.
+### Derivation: local linear scaling
 
-**Three ways.**
+Up close, any smooth function is locally linear:
+$$\Delta u \approx g'(x) \cdot \Delta x$$
+$$\Delta y \approx f'(u) \cdot \Delta u = f'(u) \cdot \big( g'(x) \cdot \Delta x \big)$$
+
+Dividing both sides by $\Delta x$:
+
+$$\frac{dy}{dx} = f'(u) \cdot g'(x) = \frac{dy}{du} \cdot \frac{du}{dx}$$
+
+> [!CAUTION]
+> **The Evaluation Point Trap:**
+> The outer derivative $f'(u)$ must be evaluated at **$u = g(x)$** (the intermediate value
+> that the forward pass actually produced), **never at $x$**!
+
+### Worked example: $y = (3x + 1)^2$ at $x = 2$
+
+1. **Inner step**: $u = g(x) = 3x + 1$.
+   - At $x = 2$: $u = 3(2) + 1 = \mathbf{7}$.
+   - Inner derivative: $\frac{du}{dx} = 3$.
+2. **Outer step**: $y = f(u) = u^2$.
+   - Outer derivative: $\frac{dy}{du} = 2u$.
+   - Evaluated at $u = 7$: $\frac{dy}{du} = 2(7) = \mathbf{14}$ (not $2 \times 2 = 4$!).
+3. **Chain rule product**:
+   $$\frac{dy}{dx} = \frac{dy}{du} \cdot \frac{du}{dx} = 14 \times 3 = \mathbf{42}$$
+
+Check by expanding first: $y = 9x^2 + 6x + 1 \implies \frac{dy}{dx} = 18x + 6 = 18(2) + 6 = \mathbf{42}$. ✓
+
+### The sigmoid derivative derived via the chain rule
+
+The sigmoid activation is defined as:
+
+$$\sigma(z) = \frac{1}{1 + e^{-z}} = (1 + e^{-z})^{-1}$$
+
+Let $u = 1 + e^{-z}$, so $\sigma = u^{-1}$. We differentiate using the chain rule:
+
+1. **Outer derivative**:
+   $$\frac{d}{du}(u^{-1}) = -u^{-2} = -\frac{1}{(1 + e^{-z})^2}$$
+2. **Inner derivative**:
+   $$\frac{d}{dz}(1 + e^{-z}) = -e^{-z}$$
+3. **Multiply**:
+   $$\frac{d\sigma}{dz} = \left( -\frac{1}{(1 + e^{-z})^2} \right) \cdot (-e^{-z}) = \frac{e^{-z}}{(1 + e^{-z})^2}$$
+
+Now factor the numerator:
+$$\frac{e^{-z}}{(1 + e^{-z})^2} = \frac{1}{1 + e^{-z}} \cdot \frac{e^{-z}}{1 + e^{-z}} = \frac{1}{1 + e^{-z}} \cdot \left( 1 - \frac{1}{1 + e^{-z}} \right)$$
+
+Because $\sigma(z) = \frac{1}{1 + e^{-z}}$:
+
+$$\frac{d\sigma}{dz} = \sigma(z) \cdot (1 - \sigma(z))$$
+
+If we let $a = \sigma(z)$ represent the neuron's activation, then:
+
+$$\frac{da}{dz} = a(1 - a)$$
+
+### Properties of the sigmoid derivative
+
+```
+  dσ/dz
+  0.25 ┼          ┌───┐          Maximum slope = 0.25 at z = 0
+       │         ╱     ╲
+  0.10 ┼        ╱       ╲        Saturates to 0 as |z| grows
+  0.00 ┼───────┴─────────┴──────
+       -6     -2   0   2      6  Input z
+```
+
+- **Maximum at $z = 0$**: $\sigma(0) = 0.5 \implies \frac{d\sigma}{dz} = 0.5(0.5) = \mathbf{0.25}$.
+- **Vanishing slopes**: When $|z|$ is large (e.g., $z = 6$ or $z = -6$), $a \approx 1$ or $a \approx 0$.
+  In both cases, $a(1 - a) \approx 0$. When a neuron is pushed into extreme confidence,
+  its gradient drops to zero—a preview of the **vanishing gradient problem**!
 
 | Math | Shape | Code |
 |---|---|---|
-| d/dx f(g(x)) = f′(g(x)) · g′(x) | one number | `chain_rule(d_outer, inner, d_inner, x)` |
+| $\frac{d}{dx} f(g(x)) = f'(g(x)) \cdot g'(x)$ | scalar float | `chain_rule(d_outer, inner, d_inner, x)` |
+| $\frac{d\sigma}{dz} = a(1 - a)$ | scalar float | `d_sigmoid(z)` |
+
+---
 
 ## 6. Several paths: multiply along, add across
 
-**Concept.** Sometimes an input reaches the output by more than one route. Each
-route contributes its own chain-rule product, and the contributions **add up**.
+### Multivariable chain rule with branching
+
+When an input variable influences the output along more than one computational path,
+each path carries its own chain-rule product. The total sensitivity is the **sum**
+of the sensitivities along all paths:
 
 ```
               ┌──▶ x = t² ──┐
@@ -191,98 +319,117 @@ route contributes its own chain-rule product, and the contributions **add up**.
               └──▶ y = 3t ──┘
 ```
 
-```
-dz/dt  =  ∂z/∂x · dx/dt   +   ∂z/∂y · dy/dt
-          └─ path via x ─┘    └─ path via y ─┘
-```
+$$\frac{dz}{dt} = \frac{\partial z}{\partial x} \cdot \frac{dx}{dt} + \frac{\partial z}{\partial y} \cdot \frac{dy}{dt}$$
 
-**Worked example**, at `t = 2` (so `x = 4`, `y = 6`):
+$$\text{Total derivative} = \sum_{\text{paths}} \prod_{\text{links in path}} \text{local slopes}$$
 
-| Path | Local slopes | Product |
-|---|---|---|
-| via x | ∂z/∂x = y = 6, dx/dt = 2t = 4 | 24 |
-| via y | ∂z/∂y = x = 4, dy/dt = 3 | 12 |
-| total | | **36** |
+### Worked example: at $t = 2$
 
-Check by substituting first: `z = t² · 3t = 3t³`, so `dz/dt = 9t² = 36`. ✓
+At $t = 2$: $x = 2^2 = 4$ and $y = 3(2) = 6$. The output is $z = 4 \times 6 = 24$.
 
-**Why this matters.** This one rule — *multiply along each path, add across
-paths* — is all of backpropagation. Every weight's gradient is a sum of products
-of local slopes along every path from that weight to the loss. In lesson 5 a
-hidden neuron feeds the output; in lesson 6 an input feeds every neuron; in
-lesson 8 one number is reused in many places. The adding is the same each time.
+1. **Path 1 (via $x$)**:
+   - $\frac{\partial z}{\partial x} = y = 6$
+   - $\frac{dx}{dt} = 2t = 4$
+   - Product along Path 1: $6 \times 4 = \mathbf{24}$
 
-**Three ways.**
+2. **Path 2 (via $y$)**:
+   - $\frac{\partial z}{\partial y} = x = 4$
+   - $\frac{dy}{dt} = 3$
+   - Product along Path 2: $4 \times 3 = \mathbf{12}$
 
-| Math | Shape | Code |
-|---|---|---|
-| Σ over paths of Π (slopes along the path) | one number | `sum_over_paths([[6, 4], [4, 3]])` |
+3. **Total derivative**:
+   $$\frac{dz}{dt} = 24 + 12 = \mathbf{36}$$
 
-## 7. Putting it together: backpropagation on one weight
+Check by direct substitution: $z = (t^2)(3t) = 3t^3 \implies \frac{dz}{dt} = 9t^2 = 9(2^2) = \mathbf{36}$. ✓
 
-The smallest neural network: one input `x`, one weight `w`, a sigmoid, and a
-loss comparing the output with the target `y`.
+### Why this is the core of backpropagation
 
-```
-            forward ─────────────────────────────────────────────▶
+The golden rule of backpropagation is:
+> **Multiply slopes along each path; add contributions across paths.**
 
-   w ──▶ [ z = w·x ] ──▶ [ a = σ(z) ] ──▶ [ L = (a − y)² ]
-   x ───────┘                                    y ───┘
-
-            ◀───────────────────────────────────────────── backward
-              dz/dw = x       da/dz = a(1 − a)     dL/da = 2(a − y)
-```
-
-The **forward pass** computes and records `z`, `a` and `L`. The **backward pass**
-multiplies the local slopes, starting from the loss and working back to `w`,
-using the values the forward pass recorded.
-
-**Worked example.** `w = 0.5`, `x = 2`, `y = 1`.
-
-| Forward | Value |
-|---|---|
-| z = w·x | 1 |
-| a = σ(z) | 0.7311 |
-| L = (a − y)² | 0.0723 |
-
-| Backward link | Local slope | Value |
-|---|---|---|
-| L from a | 2(a − y) | −0.5379 |
-| a from z | a(1 − a) | 0.1966 |
-| z from w | x | 2 |
-| **dL/dw** | product | **−0.2115** |
-
-**Reading the answer.** The slope is negative: increasing `w` decreases the
-loss. So the next step is to *raise* `w` a little — subtract a small multiple of
-the slope:
-
-```
-w_new = w − η · dL/dw  =  0.5 − 0.5 × (−0.2115)  =  0.6058
-```
-
-The loss at the new `w` is lower. That single line, repeated, is gradient
-descent: lesson 2. Everything after that is about doing it for millions of
-weights at once.
-
-**Why record the forward values?** The backward pass needs `a` (and `x`). Saving
-them means the backward pass never recomputes anything. This split — forward
-saves, backward reads — is the structure of every layer you write from lesson 6
-on, and of PyTorch itself.
-
-**Three ways.**
+- In Lesson 2, a weight influences the loss on every training example: we average (add) across examples.
+- In Lesson 5, a hidden neuron connects to multiple output neurons: the errors from all downstream neurons add up.
+- In Lesson 8, automatic differentiation accumulates gradients across arbitrary branching graphs using this exact rule.
 
 | Math | Shape | Code |
 |---|---|---|
-| dL/dw = 2(a − y) · a(1 − a) · x | one number | `tiny_backward(tiny_forward(w, x, y), x, y)` |
+| $\sum_{\text{paths}} \prod \text{slopes}$ | scalar float | `sum_over_paths([[6, 4], [4, 3]])` |
 
 ---
 
-## Summary
+## 7. Putting it together: backpropagation on one weight
 
-| Tool | Question it answers | Rule |
+We now combine sensitivity, analytical derivatives, the chain rule, and branching
+into a complete forward and backward pass on the smallest possible neural network:
+one input $x$, one weight $w$, a sigmoid activation $\sigma$, and a squared error loss $L$:
+
+```
+            Forward pass ──────────────────────────────────────────▶
+
+   w ──▶ [ z = w · x ] ──▶ [ a = σ(z) ] ──▶ [ L = (a − y)² ]
+   x ───────┘                                    y ───┘
+
+            ◀────────────────────────────────────────── Backward pass
+               dz/dw = x       da/dz = a(1 − a)     dL/da = 2(a − y)
+```
+
+### The forward pass: compute and cache
+Given $w = 0.5, x = 2.0, y = 1.0$:
+1. $z = w \cdot x = 0.5 \times 2.0 = \mathbf{1.0}$
+2. $a = \sigma(z) = \sigma(1.0) = \frac{1}{1 + e^{-1}} \approx \mathbf{0.7311}$
+3. $L = (a - y)^2 = (0.7311 - 1.0)^2 = (-0.2689)^2 \approx \mathbf{0.0723}$
+
+We store $z, a, L$ in a `Trace` dataclass.
+
+### The backward pass: multiply the local slopes
+To find $\frac{\partial L}{\partial w}$, we step backward from the loss to the weight:
+
+$$\frac{\partial L}{\partial w} = \frac{\partial L}{\partial a} \cdot \frac{\partial a}{\partial z} \cdot \frac{\partial z}{\partial w}$$
+
+| Backward link | Local derivative formula | Evaluation using cached forward trace | Value |
+|---|---|---|---|
+| Link 1 ($\frac{\partial L}{\partial a}$) | $2(a - y)$ | $2(0.7311 - 1.0)$ | **$-0.5379$** |
+| Link 2 ($\frac{\partial a}{\partial z}$) | $a(1 - a)$ | $0.7311 \times (1 - 0.7311)$ | **$+0.1966$** |
+| Link 3 ($\frac{\partial z}{\partial w}$) | $x$ | $2.0$ | **$+2.0000$** |
+| **Total gradient $\frac{\partial L}{\partial w}$** | **Product of all 3** | $(-0.5379) \times (0.1966) \times (2.0)$ | **$-0.2115$** |
+
+### Taking a gradient descent step
+
+The gradient is negative ($\frac{\partial L}{\partial w} = -0.2115$), meaning increasing $w$
+will decrease the loss. To step downhill, we subtract a fraction $\eta = 0.5$ of the gradient:
+
+$$w_{\text{new}} = w - \eta \cdot \frac{\partial L}{\partial w} = 0.5 - 0.5 \times (-0.2115) = \mathbf{0.6058}$$
+
+Evaluate the new loss at $w_{\text{new}} = 0.6058$:
+- $z_{\text{new}} = 0.6058 \times 2.0 = 1.2116$
+- $a_{\text{new}} = \sigma(1.2116) \approx 0.7706$
+- $L_{\text{new}} = (0.7706 - 1.0)^2 \approx \mathbf{0.0526}$ (down from $0.0723$!)
+
+Repeating this single calculation is **gradient descent**.
+
+### Why save the forward pass values?
+
+Notice that `tiny_backward` needs $a$ and $x$. Because the forward pass cached $a$ in
+`Trace`, the backward pass never recomputes the exponential $\sigma(z)$.
+This split—**forward pass caches activations; backward pass consumes them**—is the
+fundamental architecture of every modern deep learning framework from PyTorch to JAX.
+
+| Math | Shape | Code |
 |---|---|---|
-| Derivative | How sensitive is the output to the input? | Nudge and measure, or use a known formula |
-| Partial derivative | …to *one* of several inputs? | Freeze the others |
-| Gradient | …to *each* input? | One partial per input, same length as the inputs |
-| Chain rule | …through a chain of steps? | Multiply the local slopes |
-| Several paths | …when there are several routes? | Multiply along each, add across |
+| $\frac{\partial L}{\partial w} = 2(a - y) \cdot a(1 - a) \cdot x$ | scalar float | `tiny_backward(tiny_forward(w, x, y), x, y)` |
+
+---
+
+## Summary reference table
+
+| Concept | Mathematical definition | Key rule / formula | Code equivalent |
+|---|---|---|---|
+| **Numerical derivative** | $\lim_{h \to 0} \frac{f(x+h) - f(x-h)}{2h}$ | Central difference cancels $h^2$ error: $\mathcal{O}(h^2)$ | `numerical_derivative(f, x, h)` |
+| **Sigmoid derivative** | $\frac{d}{dz} \sigma(z)$ | $a(1 - a)$, where $a = \sigma(z)$ | `d_sigmoid(z)` |
+| **Chain rule** | $\frac{d}{dx} f(g(x))$ | $f'(g(x)) \cdot g'(x)$ (outer evaluated at inner output) | `chain_rule(d_outer, inner, d_inner, x)` |
+| **Partial derivative** | $\frac{\partial f}{\partial x_i}$ | Freeze all $x_{j \neq i}$ as constants | `partial_derivative(f, args, i, h)` |
+| **Gradient vector** | $\nabla f$ | Vector of all partials; same shape as inputs | `numerical_gradient(f, args, h)` |
+| **Multivariable chain** | $\frac{dz}{dt}$ along branches | $\sum_{\text{paths}} \prod \text{slopes}$ | `sum_over_paths(paths)` |
+| **Backward pass** | $\frac{\partial L}{\partial w}$ | $\frac{\partial L}{\partial a} \cdot \frac{\partial a}{\partial z} \cdot \frac{\partial z}{\partial w} = 2(a - y)a(1-a)x$ | `tiny_backward(trace, x, y)` |
+| **Gradient step** | $w_{\text{new}}$ | $w - \eta \frac{\partial L}{\partial w}$ | `w - lr * grad` |
+
