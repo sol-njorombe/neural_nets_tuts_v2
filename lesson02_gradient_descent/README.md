@@ -31,11 +31,11 @@ Work through `descent.py` in order:
 
 | # | Function | What it does | Theory |
 |---|---|---|---|
-| 1 | `squared_error`, `loss` | Compute $(a - y)^2$ and the dataset mean squared error $L$ | §1 |
-| — | `train_by_wiggling` | Read the given coordinate search to see the baseline | §2 |
-| 2 | `gradients` | Calculate exact analytical $\frac{\partial L}{\partial \mathbf{w}}$ and $\frac{\partial L}{\partial b}$ in one pass | §4 |
-| 3 | `step` | Update weights and bias in place against the gradient | §3, §5 |
-| 4 | `train` | Run the training loop for $N$ epochs and return the loss history | §5 |
+| 1 | `squared_error`, `loss` | Compute $(a - y)^2$ and the dataset mean squared error $L$ | [THEORY §1](THEORY.md#1-a-score-for-being-wrong-the-mean-squared-error) |
+| — | `train_by_wiggling` | Read the given coordinate search to see the baseline | [THEORY §2](THEORY.md#2-wiggling-to-learn-the-naive-baseline) |
+| 2 | `gradients` | Calculate exact analytical $\frac{\partial L}{\partial \mathbf{w}}$ and $\frac{\partial L}{\partial b}$ in one pass | [THEORY §3, §4](THEORY.md#3-the-gradient-calculus-does-all-weights-at-once) |
+| 3 | `step` | Update weights and bias in place against the gradient | [THEORY §3, §5](THEORY.md#5-the-step-size-learning-rate) |
+| 4 | `train` | Run the training loop for $N$ epochs and return the loss history | [THEORY §5](THEORY.md#5-the-step-size-learning-rate) |
 
 ### Task 1: Measuring wrongness (`squared_error` and `loss`)
 - `squared_error(a, y)` returns $(a - y)^2$ for a single prediction.

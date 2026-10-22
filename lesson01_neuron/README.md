@@ -42,11 +42,11 @@ of 3-bit binary inputs:
 
 | # | Function / Class | Theory | What it does |
 |---|---|---|---|
-| 1 | `sigmoid(z)` | §3 | Numerically safe sigmoid: handles $z = \pm 1000$ without overflow. |
-| 2 | `Neuron.random(d_in, rng)` | §5 | Factory method: initializes random weights from `rng.uniform(-1, 1)` and $b = 0$. |
-| 3 | `weighted_sum`, `forward`, `predict` | §2 | Forward pass: $z = \sum w_i x_i + b$, $a = \sigma(z)$, and $\hat{y} = \mathbb{I}(a > 0.5)$. |
+| 1 | `sigmoid(z)` | [THEORY §3](THEORY.md#3-the-sigmoid-activation) | Numerically safe sigmoid: handles $z = \pm 1000$ without overflow. |
+| 2 | `Neuron.random(d_in, rng)` | [THEORY §1](THEORY.md#1-one-neuron) | Factory method: initializes random weights from `rng.uniform(-1, 1)` and $b = 0$. |
+| 3 | `weighted_sum`, `forward`, `predict` | [THEORY §2, §5](THEORY.md#2-a-worked-forward-pass) | Forward pass: $z = \sum w_i x_i + b$, $a = \sigma(z)$, and $\hat{y} = \mathbb{I}(a > 0.5)$. |
 | 4 | `accuracy(neuron, data)` | — | Evaluates fraction of correct predictions across a dataset: $\frac{1}{n} \sum \mathbb{I}(\hat{y} == y)$. |
-| 5 | `HAND_OR`, `HAND_AND` | §4 | Choose weights and bias by hand to solve OR3 and AND3 with high confidence. |
+| 5 | `HAND_OR`, `HAND_AND` | [THEORY §4](THEORY.md#4-why-the-threshold-is-05) | Choose weights and bias by hand to solve OR3 and AND3 with high confidence. |
 
 ### Task 1: Numerically safe sigmoid (`sigmoid`)
 - Compute $\sigma(z) = \frac{1}{1 + e^{-z}}$ for $z \ge 0$.

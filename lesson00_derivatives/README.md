@@ -27,12 +27,12 @@ sequential order; the test suite is structured to match this sequence.
 
 | # | Function(s) | Theory | What it does |
 |---|---|---|---|
-| 1 | `numerical_derivative` | §2 | Central difference estimate: $(f(x + h) - f(x - h)) / 2h$. The referee for the course. |
-| 2 | `d_square`, `d_sigmoid` | §3, §5 | Exact analytical derivatives: $2x$ and $a(1 - a)$, verified against Task 1. |
-| 3 | `chain_rule` | §5 | Function composition: $f'(g(x)) \cdot g'(x)$. Evaluates outer slope at $g(x)$. |
-| 4 | `partial_derivative`, `numerical_gradient` | §4 | Freeze coordinates to compute $\frac{\partial f}{\partial x_i}$; collect into gradient vector $\nabla f$. |
-| 5 | `sum_over_paths` | §6 | Branching calculus: multiply along each path, then sum across paths. |
-| 6 | `tiny_forward`, `tiny_backward` | §7 | Backprop on one weight: forward caches values in `Trace`; backward multiplies local slopes. |
+| 1 | `numerical_derivative` | [THEORY §2](THEORY.md#2-the-numerical-derivative-wiggling) | Central difference estimate: $(f(x + h) - f(x - h)) / 2h$. The referee for the course. |
+| 2 | `d_square`, `d_sigmoid` | [THEORY §3, §5](THEORY.md#3-analytic-derivatives-exact-formulas) | Exact analytical derivatives: $2x$ and $a(1 - a)$, verified against Task 1. |
+| 3 | `chain_rule` | [THEORY §5](THEORY.md#5-composing-operations-the-chain-rule) | Function composition: $f'(g(x)) \cdot g'(x)$. Evaluates outer slope at $g(x)$. |
+| 4 | `partial_derivative`, `numerical_gradient` | [THEORY §4](THEORY.md#4-several-inputs-partial-derivatives-and-the-gradient) | Freeze coordinates to compute $\frac{\partial f}{\partial x_i}$; collect into gradient vector $\nabla f$. |
+| 5 | `sum_over_paths` | [THEORY §6](THEORY.md#6-several-paths-multivariable-chain-rule) | Branching calculus: multiply along each path, then sum across paths. |
+| 6 | `tiny_forward`, `tiny_backward` | [THEORY §7](THEORY.md#7-backpropagation-on-a-one-weight-network) | Backprop on one weight: forward caches values in `Trace`; backward multiplies local slopes. |
 
 ### Task 1: The central difference (`numerical_derivative`)
 - Implements $\frac{f(x + h) - f(x - h)}{2h}$ with default $h = 10^{-5}$.
