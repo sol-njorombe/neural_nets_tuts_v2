@@ -1,0 +1,32 @@
+[project]
+name = "nn-from-scratch"
+version = "0.1.0"
+description = "Neural networks from a single derivative up to PyTorch, one tested lesson at a time."
+requires-python = ">=3.12"
+dependencies = ["numpy>=2.0", "pytest>=8.0"]
+
+[project.optional-dependencies]
+dev = ["pyright"]
+# Lessons 9-10 only, install when you get there:  pip install -e ".[torch]"
+torch = ["torch"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = []
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib -q"
+testpaths = ["."]
+norecursedirs = ["solutions", "tools", ".venv", "venv", ".git"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+include = ["lesson*", "solutions", "tools"]
+exclude = ["**/test_*.py", "**/__pycache__", ".venv"]
+typeCheckingMode = "strict"
+# Learner stubs keep the imports their solutions will need, so an unused import
+# is a hint, not an error.
+reportUnusedImport = "warning"
