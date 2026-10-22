@@ -20,6 +20,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
+    # The repo root, so every lesson can import the reference library `nnlib`.
+    sys.path.insert(0, str(ROOT))
     # Each lesson folder holds your code plus its given helper files.
     for folder in sorted(ROOT.glob("lesson*")):
         sys.path.insert(0, str(folder))

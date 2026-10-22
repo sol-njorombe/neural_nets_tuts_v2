@@ -62,6 +62,10 @@ source .venv/bin/activate         # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"           # numpy, pytest, pyright
 ```
 
+The editable install also makes `nnlib` importable: a small library holding
+finished versions of each lesson's code, which later lessons build on. Lessons 9
+and 10 need PyTorch: `pip install -e ".[torch]"` (or `uv sync --extra torch`).
+
 Use an editor with Python type checking (VS Code with Pylance, or PyCharm).
 The type hints are there to answer "what is this variable?" as you type.
 
@@ -90,16 +94,16 @@ discussion questions, and the mistakes learners usually make.
 |---|---|---|---|
 | 0 | `lesson00_derivatives` | Derivatives, partial derivatives, the chain rule, in Python | ✅ |
 | 1 | `lesson01_neuron` | One neuron as a typed class; the forward pass | ✅ |
-| 2 | `lesson02_gradient_descent` | Loss and gradient descent; the XOR wall | planned |
-| 3 | `lesson03_shapes` | NumPy and matrix shapes | planned |
-| 4 | `lesson04_batched_neuron` | One neuron on a whole batch | planned |
-| 5 | `lesson05_backprop` | Hidden layers and backpropagation; XOR solved | planned |
-| 6 | `lesson06_layers` | Layers, softmax, minibatches; reading handwritten digits | planned |
-| 7 | `lesson07_generalisation` | Overfitting, initialisation, optimisers | planned |
-| 8 | `lesson08_autograd` | Automatic differentiation | planned |
-| 9 | `lesson09_pytorch` | PyTorch | planned |
-| 10 | `lesson10_transfer` | Transfer learning | planned |
-| 11 | `lesson11_capstone` | Your own project | planned |
+| 2 | `lesson02_gradient_descent` | Loss and gradient descent; the XOR wall | ✅ |
+| 3 | `lesson03_shapes` | NumPy and matrix shapes | ✅ |
+| 4 | `lesson04_batched_neuron` | One neuron on a whole batch | ✅ |
+| 5 | `lesson05_backprop` | Hidden layers and backpropagation; XOR solved | ✅ |
+| 6 | `lesson06_layers` | Layers, softmax, minibatches; reading handwritten digits | ✅ |
+| 7 | `lesson07_generalisation` | Overfitting, initialisation, optimisers | ✅ |
+| 8 | `lesson08_autograd` | Automatic differentiation | ✅ |
+| 9 | `lesson09_pytorch` | PyTorch | ✅ |
+| 10 | `lesson10_transfer` | Transfer learning | ✅ |
+| 11 | `lesson11_capstone` | A project of your own, with four briefs to choose from | ✅ |
 
 [NOTATION.md](NOTATION.md) defines every symbol. [COURSE_DESIGN.md](COURSE_DESIGN.md)
 holds the rules every lesson follows and how to maintain the course.

@@ -41,3 +41,24 @@ Rows are always examples.
 | ∇f | `grad` | The gradient: the list of all partial derivatives of f |
 | ∂L/∂W | `dW` | The gradient of the loss with respect to W. **Always the same shape as W.** |
 | δ | `delta` | ∂L/∂z: how the loss changes with a neuron's weighted sum. The "blame" passed backwards. |
+
+## Classification (lesson 6 onward)
+
+| Symbol | Code | Shape | Meaning |
+|---|---|---|---|
+| k | `k` | — | Number of classes |
+| logits | `logits` | (n, k) | Raw class scores from the last layer, any real number |
+| P | `P` | (n, k) | Probabilities from softmax; each row sums to 1 |
+| y (labels) | `labels`, `y` | (n,) | The correct class for each example, an integer in 0..k−1 |
+| one_hot(y) | `one_hot(y, k)` | (n, k) | 1 at each row's correct class, 0 elsewhere |
+
+## Optimisers (lesson 7 onward)
+
+| Symbol | Code | Meaning |
+|---|---|---|
+| β | `beta` | Momentum's decay: how much of the old velocity to keep |
+| v (momentum) | `velocities` | Running sum of past gradients |
+| m, v (Adam) | `m`, `v` | Running means of the gradient and of its square |
+| β₁, β₂ | `beta1`, `beta2` | Adam's decay rates for m and v |
+| t | `t` | Number of optimiser steps taken |
+| ε | `eps` | A tiny number that prevents division by zero |

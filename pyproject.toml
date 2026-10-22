@@ -15,7 +15,10 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = []
+packages = ["nnlib"]
+
+[tool.setuptools.package-data]
+nnlib = ["digits.npz"]
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib -q"
@@ -24,9 +27,11 @@ norecursedirs = ["solutions", "tools", ".venv", "venv", ".git"]
 
 [tool.pyright]
 pythonVersion = "3.12"
-include = ["lesson*", "solutions", "tools"]
+include = ["lesson*", "solutions", "tools", "nnlib"]
 exclude = ["**/test_*.py", "**/__pycache__", ".venv"]
 typeCheckingMode = "strict"
 # Learner stubs keep the imports their solutions will need, so an unused import
 # is a hint, not an error.
 reportUnusedImport = "warning"
+# The course uses math notation: X, W, dW are ordinary variables, not constants.
+reportConstantRedefinition = false

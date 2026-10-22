@@ -26,10 +26,14 @@ lesson, check it against this page.
    | `<name>.py` | The learner's file: typed stubs with TODOs |
    | `test_<name>.py` | The specification, as tests |
 
-   The reference solution lives in `solutions/<lesson>/<name>.py`.
+   The reference solution lives in `solutions/<lesson>/<name>.py`. The capstone
+   (lesson 11) is the one exception: it has no code file or tests, and its
+   `TEACHING.md` holds a review rubric instead.
 3. **Every lesson ends with its limit:** the problem that motivates the next lesson.
 4. **Lessons are self-contained.** Each starts from working reference code for
    everything before it, so a mistake in one lesson never carries into the next.
+   Finished building blocks live in the `nnlib` package; later lessons import
+   from it rather than from the learner's earlier files.
 
 ### Code
 
@@ -83,16 +87,16 @@ lesson, check it against this page.
 |---|---|---|---|---|
 | 0 | `lesson00_derivatives` | Derivatives, partial derivatives, chain rule | Backprop on a one-weight network, by hand | ✅ |
 | 1 | `lesson01_neuron` | One neuron as a typed dataclass | You set weights by hand that compute OR and AND | ✅ |
-| 2 | `lesson02_gradient_descent` | Loss and gradient descent | The neuron learns OR, and provably cannot learn XOR | planned |
-| 3 | `lesson03_shapes` | NumPy and shapes bootcamp: `@`, broadcasting, transpose, reshape, axis sums | Shape fluency, no neural nets | planned |
-| 4 | `lesson04_batched_neuron` | One neuron on a whole batch | `dW = X.T @ δ`, derived from shapes | planned |
-| 5 | `lesson05_backprop` | Hidden layer and backpropagation in matrices | XOR solved | planned |
-| 6 | `lesson06_layers` | Layers, softmax, minibatches | Your code reads handwritten digits | planned |
-| 7 | `lesson07_generalisation` | Validation, overfitting, initialisation, learning rate, momentum, Adam | You can diagnose a bad training run | planned |
-| 8 | `lesson08_autograd` | Automatic differentiation | Networks with no hand-written backward pass | planned |
-| 9 | `lesson09_pytorch` | PyTorch | Lesson 6 in PyTorch, gradients matched to yours | planned |
-| 10 | `lesson10_transfer` | Transfer learning | A pretrained model plus a small trained head | planned |
-| 11 | `lesson11_capstone` | Capstone | Your own project | planned |
+| 2 | `lesson02_gradient_descent` | Loss and gradient descent | The neuron learns OR, and provably cannot learn XOR | ✅ |
+| 3 | `lesson03_shapes` | NumPy and shapes bootcamp: `@`, broadcasting, transpose, reshape, axis sums | Shape fluency, no neural nets | ✅ |
+| 4 | `lesson04_batched_neuron` | One neuron on a whole batch | `dW = X.T @ δ`, derived from shapes | ✅ |
+| 5 | `lesson05_backprop` | Hidden layer and backpropagation in matrices | XOR solved | ✅ |
+| 6 | `lesson06_layers` | Layers, softmax, minibatches | Your code reads handwritten digits | ✅ |
+| 7 | `lesson07_generalisation` | Validation, overfitting, initialisation, learning rate, momentum, Adam | You can diagnose a bad training run | ✅ |
+| 8 | `lesson08_autograd` | Automatic differentiation | Networks with no hand-written backward pass | ✅ |
+| 9 | `lesson09_pytorch` | PyTorch | Lesson 6 in PyTorch, gradients matched to yours | ✅ |
+| 10 | `lesson10_transfer` | Transfer learning | A pretrained model plus a small trained head | ✅ |
+| 11 | `lesson11_capstone` | Capstone | Your own project | ✅ |
 
 ## Maintaining the course
 
@@ -118,5 +122,9 @@ from them.
   pyright                              # strict types
   pytest --solutions                   # every test passes on the reference
   ```
-- Files with no solution in them (tests, Markdown, given data loaders) are
-  written directly in the lesson folder.
+- Files with no solution in them (tests, Markdown, given helpers such as
+  `lesson08_autograd/tiny_nn.py`) are written directly in the lesson folder.
+- `nnlib/` holds finished versions of code that later lessons build on. When a
+  lesson's solution changes, update the matching `nnlib` module too.
+- Module names must be unique across all lesson folders, because every lesson
+  folder is on the import path at once.
