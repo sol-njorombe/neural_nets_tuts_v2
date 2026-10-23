@@ -44,8 +44,10 @@ def sigmoid(z: float) -> float:
     math.exp(1000) raises OverflowError, so the textbook formula crashes on
     sigmoid(-1000). THEORY §3 shows an equivalent form for negative z.
     """
-    # TODO
-    raise NotImplementedError("TODO: implement sigmoid()")
+    if z < 0:
+        return math.exp(z) / (math.exp(z) + 1)
+    else:
+        return 1 / (1 + math.exp(-z))
 
 
 # --- Tasks 2-4: the neuron (THEORY §1, §2, §4) -------------------------------
@@ -65,8 +67,7 @@ class Neuron:
 
         Convert each draw with float(...): rng returns a NumPy scalar.
         """
-        # TODO
-        raise NotImplementedError("TODO: implement random()")
+        return cls(w=[float(rng.uniform(-1, 1)) for _ in range(d_in)], b=0.0)
 
     def weighted_sum(self, x: Inputs) -> float:
         """Task 3. z = w₀x₀ + w₁x₁ + ... + b
@@ -74,24 +75,25 @@ class Neuron:
         Raise ValueError if len(x) != len(self.w). (zip() would silently stop
         at the shorter one, hiding the bug. THEORY §5.)
         """
-        # TODO
-        raise NotImplementedError("TODO: implement weighted_sum()")
+        if len(x) != len(self.w):
+            raise ValueError(f"expected {len(self.w)} inputs, got {len(x)}")
+        return sum([x_i * w for w, x_i in zip(self.w, x)]) + self.b
 
     def forward(self, x: Inputs) -> float:
         """Task 3. a = σ(z): the neuron's output, between 0 and 1."""
-        # TODO
-        raise NotImplementedError("TODO: implement forward()")
+        return sigmoid(self.weighted_sum(x))
 
     def predict(self, x: Inputs) -> int:
         """Task 3. The yes/no answer: 1 if a > 0.5, else 0."""
-        # TODO
-        raise NotImplementedError("TODO: implement predict()")
+        if self.forward(x) > 0.5:
+            return 1
+        else:
+            return 0
 
 
 def accuracy(neuron: Neuron, data: list[Example]) -> float:
     """Task 4. The fraction of examples the neuron predicts correctly, from 0.0 to 1.0."""
-    # TODO
-    raise NotImplementedError("TODO: implement accuracy()")
+    return [neuron.predict(ex.x) == ex.y for ex in data].count(True) / len(data)
 
 
 # --- Task 5: be the learning algorithm (THEORY §4) ---------------------------
@@ -99,10 +101,10 @@ def accuracy(neuron: Neuron, data: list[Example]) -> float:
 # Think of the bias as the hurdle the weighted sum has to clear.
 
 # TODO: replace None with Neuron(w=[?, ?, ?], b=?)
-HAND_OR: Neuron | None = None
+HAND_OR: Neuron = Neuron(w=[10.0, 10.0, 10.0], b=-5.0)
 
 # TODO: replace None with Neuron(w=[?, ?, ?], b=?)
-HAND_AND: Neuron | None = None
+HAND_AND: Neuron = Neuron(w=[10.0, 10.0, 10.0], b=-25.0)
 
 
 if __name__ == "__main__":
