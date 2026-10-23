@@ -7,6 +7,7 @@ Read THEORY.md first. Then fill in each TODO, in order, and run:
 
 import copy
 from dataclasses import dataclass
+import statistics
 
 import numpy as np
 
@@ -16,14 +17,14 @@ from nnlib.scalar import AND3, FIRST_INPUT, OR3, XOR3, Example, Neuron, accuracy
 # --- Task 1: measuring wrongness (THEORY §1) ---------------------------------
 def squared_error(a: float, y: float) -> float:
     """How wrong one output is: (a − y)²."""
-    # TODO
-    raise NotImplementedError("TODO: implement squared_error()")
+    return (a - y) ** 2
 
 
 def loss(neuron: Neuron, data: list[Example]) -> float:
     """L: the mean squared error of the neuron over every example. 0 is perfect."""
-    # TODO: average squared_error(neuron.forward(e.x), e.y) over the examples
-    raise NotImplementedError("TODO: implement loss()")
+    return statistics.mean(
+        squared_error(neuron.forward(e.x), e.y) for e in data
+    )
 
 
 # --- GIVEN: learning by trial and error (THEORY §2) ---------------------------
@@ -89,8 +90,19 @@ def gradients(neuron: Neuron, data: list[Example]) -> Gradients:
     The loss is a MEAN over the examples, so divide each sum by n.
     Do not change the neuron.
     """
-    # TODO
-    raise NotImplementedError("TODO: implement gradients()")
+    def delta_of_error(a: float, y: float) -> float:
+        return 2 * (a - y) * a * (1 - a)
+
+    deltas = np.array([delta_of_error(neuron.forward(e.x), e.y) for e in data])
+    partials_w = []
+
+    for delta, ex in zip(deltas, data):
+        partials_w.append([delta * xi for xi in ex.x])
+
+    return Gradients(
+        dw= np.array(partials_w).mean(axis=0).tolist(),
+        db=statistics.mean(deltas)
+    )
 
 
 def numerical_gradients(neuron: Neuron, data: list[Example], h: float = 1e-5) -> Gradients:
@@ -107,8 +119,10 @@ def numerical_gradients(neuron: Neuron, data: list[Example], h: float = 1e-5) ->
 # --- Task 3: one step downhill (THEORY §3, §5) -------------------------------
 def step(neuron: Neuron, grads: Gradients, lr: float) -> None:
     """Move every knob against its slope, in place:  knob ← knob − lr · slope."""
-    # TODO
-    raise NotImplementedError("TODO: implement step()")
+    for i in range(len(neuron.w)):
+        neuron.w[i] -= lr * grads.dw[i]
+
+    neuron.b -= lr * grads.db
 
 
 # --- Task 4: the training loop (THEORY §5) -----------------------------------
@@ -118,8 +132,12 @@ def train(neuron: Neuron, data: list[Example], lr: float = 1.0, epochs: int = 10
     Return the loss history, one entry per epoch, each measured BEFORE that
     epoch's step (so history[0] is the untrained neuron's loss).
     """
-    # TODO
-    raise NotImplementedError("TODO: implement train()")
+    losses = []
+    for i in range(epochs):
+        losses.append(loss(neuron, data))
+        step(neuron, gradients(neuron, data), lr=lr)
+
+    return losses
 
 
 if __name__ == "__main__":
